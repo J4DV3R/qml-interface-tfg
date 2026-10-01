@@ -1,33 +1,90 @@
-import numpy as np
-from qibo.models import Circuit
-from qibo import gates
+"""Data-encoding circuits used by the QML models."""
 
-def angle_encoding(features):
-    """
-    Toma una lista de características clásicas (números entre 0 y 1) 
-    y devuelve un circuito cuántico de Qibo con esos datos codificados.
-    """
-    n_qubits = len(features)
-    
-    # 1. Inicializamos un circuito vacío con tantos qubits como datos tengamos
-    circuit = Circuit(n_qubits)
-    
-    # 2. Aplicamos una rotación Ry a cada qubit basada en el valor clásico
-    for i, x in enumerate(features):
-        # Mapeamos el valor clásico [0, 1] a un ángulo [0, pi]
-        theta = x * np.pi 
-        
-        # Añadimos la puerta Ry al qubit 'i' con el ángulo 'theta'
-        circuit.add(gates.RY(i, theta=theta))
-        
+from collections.abc import Sequence
+
+import numpy as np
+from qibo import gates
+from qibo.models import Circuit
+
+
+def _validated_features(features: Sequence[float]) -> np.ndarray:
+    values = np.asarray(features, dtype=float)
+    if values.ndim != 1 or values.size == 0:
+        raise ValueError("features must be a non-empty one-dimensional sequence.")
+    if not np.isfinite(values).all():
+        raise ValueError("features must contain only finite values.")
+    if np.any((values < 0.0) | (values > 1.0)):
+        raise ValueError("features must be normalized to the [0, 1] interval.")
+    return values
+
+
+def add_angle_encoding(
+    circuit: Circuit,
+    features: Sequence[float],
+    shifted_feature: tuple[int, float] | None = None,
+) -> Circuit:
+    """Append RY angle encoding, mapping each feature x to RY(pi * x)."""
+    values = _validated_features(features)
+    if len(values) > circuit.nqubits:
+        raise ValueError("the circuit must have at least one qubit per feature.")
+    if shifted_feature is not None:
+        feature_index, shift = shifted_feature
+        if not 0 <= feature_index < len(values):
+            raise ValueError("shifted feature index is out of range.")
+        if not np.isfinite(shift):
+            raise ValueError("feature shift must be finite.")
+    else:
+        feature_index, shift = -1, 0.0
+
+    for qubit, value in enumerate(values):
+        theta = np.pi * value
+        if qubit == feature_index:
+            theta += shift
+        circuit.add(gates.RY(qubit, theta=float(theta)))
     return circuit
 
-# --- Pequeña prueba para ver si funciona ---
+
+def angle_encoding(features: Sequence[float]) -> Circuit:
+    """Create a circuit using RY angle encoding for normalized features."""
+    values = _validated_features(features)
+    circuit = Circuit(len(values))
+    return add_angle_encoding(circuit, values)
+
+
+def add_phase_encoding(
+    circuit: Circuit,
+    features: Sequence[float],
+    shifted_feature: tuple[int, float] | None = None,
+) -> Circuit:
+    """Append phase encoding using H followed by RZ(2*pi*x) on each qubit."""
+    values = _validated_features(features)
+    if len(values) > circuit.nqubits:
+        raise ValueError("the circuit must have at least one qubit per feature.")
+    if shifted_feature is not None:
+        feature_index, shift = shifted_feature
+        if not 0 <= feature_index < len(values):
+            raise ValueError("shifted feature index is out of range.")
+        if not np.isfinite(shift):
+            raise ValueError("feature shift must be finite.")
+    else:
+        feature_index, shift = -1, 0.0
+
+    for qubit, value in enumerate(values):
+        circuit.add(gates.H(qubit))
+        theta = 2.0 * np.pi * value
+        if qubit == feature_index:
+            theta += shift
+        circuit.add(gates.RZ(qubit, theta=float(theta)))
+    return circuit
+
+
+def phase_encoding(features: Sequence[float]) -> Circuit:
+    """Create a circuit using phase encoding for normalized features."""
+    values = _validated_features(features)
+    circuit = Circuit(len(values))
+    return add_phase_encoding(circuit, values)
+
+
 if __name__ == "__main__":
-    # Imaginemos que tenemos 3 datos clásicos (ej. 3 píxeles)
-    datos_clasicos = [0.0, 0.5, 1.0]
-    
-    circuito_codificado = angle_encoding(datos_clasicos)
-    
-    print("Circuito de Codificación:")
-    print(circuito_codificado.draw())
+    print(angle_encoding([0.0, 0.5, 1.0]).draw())
+    print(phase_encoding([0.0, 0.5, 1.0]).draw())
