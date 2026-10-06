@@ -1,0 +1,86 @@
+{
+  "dataset": {
+    "name": "breast_cancer",
+    "seed": 42,
+    "n_components": 4,
+    "train_fraction": 0.7,
+    "validation_fraction": 0.15,
+    "test_fraction": 0.15
+  },
+  "model": {
+    "n_qubits": 4,
+    "encoding": "angle",
+    "execution": {
+      "shots": 50,
+      "depolarizing_probability": 0.01,
+      "seed": 1
+    }
+  },
+  "training": {
+    "learning_rate": 0.03,
+    "optimizer": "adam"
+  },
+  "results": [
+    {
+      "initialization_seed": 1,
+      "epochs": 5,
+      "loss_history": [
+        1.027610182762146,
+        1.0332945585250854,
+        0.9535960555076599,
+        0.9265929460525513,
+        0.9145205616950989
+      ],
+      "validation_loss": 0.7690165042877197,
+      "validation_metrics": {
+        "accuracy": 0.7058823704719543,
+        "precision": 0.7,
+        "recall": 0.9245283018867925,
+        "f1": 0.7967479674796748,
+        "support": 85.0
+      },
+      "test_metrics": {
+        "accuracy": 0.7441860437393188,
+        "precision": 0.7424242424242424,
+        "recall": 0.9074074074074074,
+        "f1": 0.8166666666666667,
+        "support": 86.0
+      },
+      "elapsed_seconds": 1562.0944125999958
+    },
+    {
+      "initialization_seed": 2,
+      "epochs": 5,
+      "loss_history": [
+        1.0676703453063965,
+        1.059063196182251,
+        1.006403923034668,
+        1.0203056335449219,
+        0.9437869787216187
+      ],
+      "validation_loss": 0.9066352248191833,
+      "validation_metrics": {
+        "accuracy": 0.6705882549285889,
+        "precision": 0.7192982456140351,
+        "recall": 0.7735849056603774,
+        "f1": 0.7454545454545455,
+        "support": 85.0
+      },
+      "test_metrics": {
+        "accuracy": 0.6162790656089783,
+        "precision": 0.7058823529411765,
+        "recall": 0.6666666666666666,
+        "f1": 0.6857142857142857,
+        "support": 86.0
+      },
+      "elapsed_seconds": 1565.7622218000033
+    }
+  ],
+  "baseline": {
+    "accuracy": 0.9069767594337463,
+    "precision": 0.8709677419354839,
+    "recall": 1.0,
+    "f1": 0.9310344827586207,
+    "support": 86.0
+  }
+}

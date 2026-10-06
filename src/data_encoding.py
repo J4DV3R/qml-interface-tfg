@@ -18,6 +18,20 @@ def _validated_features(features: Sequence[float]) -> np.ndarray:
     return values
 
 
+def _validated_shift(
+    shifted_feature: tuple[int, float] | None,
+    feature_count: int,
+) -> tuple[int, float]:
+    if shifted_feature is None:
+        return -1, 0.0
+    feature_index, shift = shifted_feature
+    if not 0 <= feature_index < feature_count:
+        raise ValueError("shifted feature index is out of range.")
+    if not np.isfinite(shift):
+        raise ValueError("feature shift must be finite.")
+    return feature_index, shift
+
+
 def add_angle_encoding(
     circuit: Circuit,
     features: Sequence[float],
@@ -27,14 +41,7 @@ def add_angle_encoding(
     values = _validated_features(features)
     if len(values) > circuit.nqubits:
         raise ValueError("the circuit must have at least one qubit per feature.")
-    if shifted_feature is not None:
-        feature_index, shift = shifted_feature
-        if not 0 <= feature_index < len(values):
-            raise ValueError("shifted feature index is out of range.")
-        if not np.isfinite(shift):
-            raise ValueError("feature shift must be finite.")
-    else:
-        feature_index, shift = -1, 0.0
+    feature_index, shift = _validated_shift(shifted_feature, len(values))
 
     for qubit, value in enumerate(values):
         theta = np.pi * value
@@ -60,14 +67,7 @@ def add_phase_encoding(
     values = _validated_features(features)
     if len(values) > circuit.nqubits:
         raise ValueError("the circuit must have at least one qubit per feature.")
-    if shifted_feature is not None:
-        feature_index, shift = shifted_feature
-        if not 0 <= feature_index < len(values):
-            raise ValueError("shifted feature index is out of range.")
-        if not np.isfinite(shift):
-            raise ValueError("feature shift must be finite.")
-    else:
-        feature_index, shift = -1, 0.0
+    feature_index, shift = _validated_shift(shifted_feature, len(values))
 
     for qubit, value in enumerate(values):
         circuit.add(gates.H(qubit))
@@ -76,6 +76,15 @@ def add_phase_encoding(
             theta += shift
         circuit.add(gates.RZ(qubit, theta=float(theta)))
     return circuit
+
+
+def encoding_scale(encoding: str) -> float:
+    """Return the angle scale used by a supported feature encoding."""
+    if encoding == "angle":
+        return np.pi
+    if encoding == "phase":
+        return 2.0 * np.pi
+    raise ValueError("encoding must be 'angle' or 'phase'.")
 
 
 def phase_encoding(features: Sequence[float]) -> Circuit:
