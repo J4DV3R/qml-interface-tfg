@@ -1,0 +1,65 @@
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-nodecimaldot]{babel}
+\usepackage[a4paper,margin=2.8cm,headheight=15pt]{geometry}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{csquotes}
+\usepackage[hidelinks]{hyperref}
+\usepackage{bookmark}
+\usepackage{fancyhdr}
+
+\onehalfspacing
+\setlist{itemsep=0.25em,topsep=0.35em}
+\setlength{\parindent}{1.2em}
+\setlength{\parskip}{0.25em}
+
+\definecolor{codegray}{gray}{0.95}
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codegray},
+  frame=single,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Plataforma para la experimentación con QML}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\newcommand{\pending}[1]{%
+  \par\medskip\noindent\textit{Contenido pendiente: #1}\par\medskip
+}
+
+\newcommand{\placeholderfigure}[2]{%
+  \begin{figure}[H]
+    \centering
+    \fbox{\parbox[c][#2][c]{0.85\textwidth}{\centering
+      \textit{Figura pendiente: #1}}}
+    \caption{#1}
+  \end{figure}
+}
+
+\newcommand{\placeholdertable}[1]{%
+  \begin{table}[H]
+    \centering
+    \fbox{\parbox{0.85\textwidth}{\centering
+      \textit{Tabla pendiente: #1}}}
+    \caption{#1}
+  \end{table}
+}
