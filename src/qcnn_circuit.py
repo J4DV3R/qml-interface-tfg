@@ -28,7 +28,7 @@ def add_conv_layer(
     if len(set(qubits)) != len(qubits):
         raise ValueError("active qubits must be unique.")
     if any(not isinstance(qubit, int) or not 0 <= qubit < circuit.nqubits for qubit in qubits):
-        raise ValueError("active qubits must be valid indices in the circuit.")
+        raise ValueError("active qubits must be valid indexes in the circuit.")
     if len(weights) != 4:
         raise ValueError("a convolution layer requires exactly four weights.")
     values = np.asarray([float(weight) for weight in weights], dtype=float)
