@@ -114,7 +114,7 @@ Antes del barrido base se ejecutó una batería reducida para verificar el flujo
 - 5 ejecuciones totales: una exacta y dos para cada condición muestreada.
 
 El resultado completo se conserva en
-`results/qcnn-validation.json`. Esta batería confirma el contrato técnico,
+`results/initial-hybrid-adam/qcnn-validation.json`. Esta batería confirma el contrato técnico,
 pero no debe utilizarse como resultado científico final por su reducido número
 de épocas, shots y repeticiones.
 
@@ -129,7 +129,7 @@ Se ejecutó una prueba de mayor tamaño con:
 - ruido `0.0` y `0.01`;
 - dos semillas para las condiciones muestreadas.
 
-El resultado se conserva en `results/iris-qcnn-medium.json` y contiene 9
+El resultado se conserva en `results/initial-hybrid-adam/iris-qcnn-medium.json` y contiene 9
 ejecuciones y 5 condiciones agregadas. La accuracy de test quedó entre
 `0.50` y `0.567`, mientras que la regresión logística obtuvo `1.0` en la
 misma partición. Estos valores no permiten evaluar todavía la convergencia,
@@ -169,7 +169,7 @@ El diagnóstico se ejecutará con:
 
 ```powershell
 python -m experiments.diagnose_convergence `
-  --output results/qcnn-convergence.json
+  --output results/reproductions/legacy/qcnn-convergence.json
 ```
 
 ## Batería focalizada para cerrar la QCNN
@@ -181,6 +181,11 @@ componentes y la normalización min-max únicamente con entrenamiento. Cada
 componente resultante se codifica en un qubit; por defecto se conserva la
 arquitectura `4 -> 2 -> 1`.
 
+Los resultados originales de esta etapa están congelados en
+`results/initial-hybrid-adam/`. Los comandos siguientes escriben en
+`results/reproductions/legacy/` para que una repetición no sobrescriba los
+archivos históricos.
+
 Los comandos recomendados desde la raíz del repositorio son:
 
 ```powershell
@@ -188,31 +193,31 @@ Los comandos recomendados desde la raíz del repositorio son:
 python -m experiments.run_final_qcnn `
   --dataset breast_cancer --encoding angle `
   --epochs 10 20 30 --seeds 19 `
-  --output results/breast-cancer-qcnn-convergence.json
+  --output results/reproductions/legacy/breast-cancer-qcnn-convergence.json
 
 # C: variabilidad entre tres inicializaciones, 30 épocas exactas
 python -m experiments.run_final_qcnn `
   --dataset breast_cancer --encoding angle `
   --epochs 30 --seeds 19 23 29 `
-  --output results/breast-cancer-qcnn-seeds.json
+  --output results/reproductions/legacy/breast-cancer-qcnn-seeds.json
 
 # D-angular: referencia reproducible para la codificación angular
 python -m experiments.run_final_qcnn `
   --dataset breast_cancer --encoding angle `
   --epochs 30 --seeds 19 23 29 `
-  --output results/breast-cancer-qcnn-angle.json
+  --output results/reproductions/legacy/breast-cancer-qcnn-angle.json
 
 # D-fase: misma configuración cambiando solo la codificación
 python -m experiments.run_final_qcnn `
   --dataset breast_cancer --encoding phase `
   --epochs 30 --seeds 19 23 29 `
-  --output results/breast-cancer-qcnn-phase.json
+  --output results/reproductions/legacy/breast-cancer-qcnn-phase.json
 
 # E: robustez y coste con dos semillas; usar solo después de validar B
 python -m experiments.run_final_qcnn `
   --dataset breast_cancer --encoding angle `
   --epochs 5 --seeds 1 2 --shots 50 --noise 0.01 `
-  --output results/breast-cancer-qcnn-noisy.json
+  --output results/reproductions/legacy/breast-cancer-qcnn-noisy.json
 ```
 
 El experimento F (QCNN frente al baseline) queda incluido en cada JSON:
