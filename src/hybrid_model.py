@@ -4,37 +4,24 @@ import math
 
 import numpy as np
 import torch
-from qibo import gates
 from torch import nn
-from qibo.models import Circuit
-from qibo.noise import DepolarizingError, NoiseModel
 
 if __package__:
-    from .data_encoding import add_angle_encoding, add_phase_encoding, encoding_scale
+    from .data_encoding import encoding_scale
     from .execution import ExecutionConfig
-    from .pooling import add_pooling_layer
-    from .qcnn_circuit import add_conv_layer
+    from .qcnn_engine import (
+        depolarizing_noise_model as _depolarizing_noise_model,
+        expectation_z as _expectation_z,
+        simulate_qcnn as _engine_simulate_qcnn,
+    )
 else:
-    from data_encoding import add_angle_encoding, add_phase_encoding, encoding_scale
+    from data_encoding import encoding_scale
     from execution import ExecutionConfig
-    from pooling import add_pooling_layer
-    from qcnn_circuit import add_conv_layer
-
-
-def _expectation_z(state: np.ndarray, n_qubits: int, qubit: int) -> float:
-    probabilities = np.abs(np.asarray(state).reshape(-1)) ** 2
-    basis_states = np.arange(probabilities.size)
-    bit_position = n_qubits - 1 - qubit
-    signs = 1.0 - 2.0 * ((basis_states >> bit_position) & 1)
-    return float(np.dot(probabilities, signs).real)
-
-
-def _depolarizing_noise_model(probability: float) -> NoiseModel:
-    noise_model = NoiseModel()
-    error = DepolarizingError(probability)
-    for gate in (gates.RY, gates.RZ, gates.CNOT):
-        noise_model.add(error, gate)
-    return noise_model
+    from qcnn_engine import (
+        depolarizing_noise_model as _depolarizing_noise_model,
+        expectation_z as _expectation_z,
+        simulate_qcnn as _engine_simulate_qcnn,
+    )
 
 
 def _simulate_qcnn(
@@ -47,49 +34,17 @@ def _simulate_qcnn(
     encoding: str = "angle",
     execution_config: ExecutionConfig = ExecutionConfig(),
 ) -> np.ndarray:
-    circuit = Circuit(n_qubits)
-    if encoding == "angle":
-        add_angle_encoding(circuit, features, shifted_feature)
-    elif encoding == "phase":
-        add_phase_encoding(circuit, features, shifted_feature)
-    else:
-        raise ValueError("encoding must be 'angle' or 'phase'.")
-    active_qubits = list(range(n_qubits))
-
-    for layer_index, layer_weights in enumerate(weights):
-        layer_shift = None
-        if shifted_weight is not None and shifted_weight[0] == layer_index:
-            _, pair_index, weight_index, shift = shifted_weight
-            layer_shift = (pair_index, weight_index, shift)
-        add_conv_layer(circuit, active_qubits, layer_weights, layer_shift)
-
-        if len(active_qubits) > n_outputs:
-            keep = active_qubits[::2]
-            discard = active_qubits[1::2]
-            add_pooling_layer(circuit, keep, discard)
-            active_qubits = keep
-
-    if execution_config.shots is None:
-        if execution_config.noisy:
-            raise ValueError("noise requires a positive shots value.")
-        state = circuit.execute().state()
-        return np.asarray(
-            [_expectation_z(state, n_qubits, qubit) for qubit in active_qubits],
-            dtype=float,
-        )
-
-    circuit.add(gates.M(*active_qubits))
-    if execution_config.noisy:
-        circuit = _depolarizing_noise_model(
-            execution_config.depolarizing_probability
-        ).apply(circuit)
-    result = circuit.execute(nshots=execution_config.shots)
-    frequencies = result.frequencies(binary=True)
-    expectations = np.zeros(len(active_qubits), dtype=float)
-    for bitstring, count in frequencies.items():
-        for index, bit in enumerate(bitstring):
-            expectations[index] += (1.0 if bit == "0" else -1.0) * count
-    return expectations / execution_config.shots
+    """Simulate one QCNN sample through the pure Qibo/NumPy engine."""
+    return _engine_simulate_qcnn(
+        features,
+        weights,
+        n_qubits,
+        n_outputs,
+        shifted_feature=shifted_feature,
+        shifted_weight=shifted_weight,
+        encoding=encoding,
+        execution_config=execution_config,
+    )
 
 
 class _ParameterShiftQCNN(torch.autograd.Function):

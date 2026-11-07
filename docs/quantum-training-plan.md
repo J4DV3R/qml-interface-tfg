@@ -2,7 +2,14 @@
 
 **Fecha:** 6 de noviembre de 2026.
 **Origen:** reunión de seguimiento del TFG.
-**Estado:** planificado; no implementado todavía.
+**Estado a 7 de noviembre de 2026:** M1-M4 están implementados y validados
+unitariamente. El runner y el bucle integrados aún no se han ejecutado como
+experimento; no hay resultados nuevos ni ejecución en hardware. El objetivo del
+tutor —preparar la ejecución en un ordenador cuántico real y evitar el ajuste
+clásico de pesos, llevando ese ajuste a circuitos— está confirmado por la
+aclaración del responsable del proyecto. La implementación actual aún no satisface
+ese objetivo de extremo a extremo. La variante modular concreta sigue pendiente
+de contraste con el tutor.
 
 ## 1. Decisión de la reunión
 
@@ -11,10 +18,11 @@ embargo, el modelo y el entrenamiento actuales son híbridos: Qibo construye y
 ejecuta el circuito, pero PyTorch mantiene los pesos, calcula el grafo de
 autograd y Adam realiza la actualización clásica.
 
-El requisito acordado es **eliminar el entrenamiento híbrido basado en
-retropropagación y Adam**. El ajuste de los pesos debe realizarse mediante
-algún circuito cuántico o un mecanismo equivalente, no mediante descenso de
-gradientes clásico.
+El objetivo acordado es **preparar el entrenamiento para ejecución en hardware
+cuántico real y eliminar la actualización clásica de pesos**. El ajuste de los
+pesos debe realizarse mediante circuitos cuánticos, en la medida de lo posible;
+la ejecución debe orientarse a hardware y no solo a simulación local. Eliminar
+Adam/autograd es un medio, no el criterio completo de éxito.
 
 Una vez estabilizado el nuevo entrenamiento, se repetirán los experimentos con
 más épocas o presupuestos de evaluación, porque los resultados actuales con 30
@@ -179,6 +187,16 @@ Limitaciones que deben explicarse en la memoria:
 - La actualización es por peso; no es un único circuito coherente para todos
   los pesos.
 
+**Corrección de viabilidad y estado implementado (7 de noviembre de 2026):** el
+mapeo con clipping anterior,
+`|theta_code>|grad_code> -> |theta_new_code>|0>`, no puede ser unitario tal como
+está escrito porque no es inyectivo. M3 implementa en su lugar una permutación
+reversible modular que conserva el registro del gradiente. El peso puede dar
+wrap-around en los extremos, por lo que esta variante no es equivalente al
+clipping propuesto. La codificación del gradiente también satura los valores
+fuera del intervalo finito configurado. Esta desviación está implementada y
+validada unitariamente, pero la aceptación del tutor sigue pendiente.
+
 Trabajo futuro: sustituir la tabla por sumadores/restadores cuánticos y
 explorar una búsqueda Grover/QAOA para el espacio completo.
 
@@ -205,10 +223,12 @@ No se usará el test para seleccionar pesos. Se registrarán pérdida de
 entrenamiento, pérdida de validación, métricas, número de evaluaciones,
 número de ejecuciones de circuito y tiempo.
 
-**Un paso de QGD equivale a una época en uso de datos:** ambos recorren una vez
-el conjunto de entrenamiento, calculan la pérdida, obtienen el gradiente y
-actualizan los pesos una vez. La diferencia es que QGD sustituye la
-actualización de Adam por el circuito cuántico.
+**Un paso de QGD equivale a una época solo en exposición a datos:** ambos pueden
+recorrer una vez el conjunto de entrenamiento, calcular la pérdida, obtener el
+gradiente y actualizar los pesos una vez. Esto no implica el mismo coste de
+simulación: parameter-shift con shots y los circuitos QGD de actualización
+añaden ejecuciones que deben contarse por separado. QGD sustituye la actualización
+de Adam por la permutación cuántica discreta.
 
 ### 6.5 Unidades de entrenamiento y comparabilidad
 
@@ -299,6 +319,17 @@ docs/quantum-training-plan.md         este plan
 `src/training.py` y `src/hybrid_model.py` se conservan como legado. Se marcarán
 como referencia histórica y no se usarán en los nuevos experimentos.
 
+**Estado de implementación:** los módulos de motor, optimizadores y actualización
+existen en `src/qcnn_engine.py`, `src/optimizers.py` y `src/quantum_update.py`;
+M4 añadió `src/quantum_training.py`, `experiments/run_quantum_training.py` y
+`tests/test_quantum_training.py`. El bucle usa un gradiente inicial exacto y
+gradientes parameter-shift posteriores con shots. En ambos casos el host
+postprocesa las expectativas; pérdidas, acumulación, selección de checkpoint y
+control también son clásicos. El circuito de actualización se ejecuta en estado
+vector exacto y se decodifica por el estado de salida, no utiliza shots. El
+procedimiento no es íntegramente cuántico y su aceptación como «no híbrido» no se
+da por establecida.
+
 ### 6.8 Pruebas previstas
 
 - La pérdida pura coincide con la del modelo PyTorch con los mismos pesos.
@@ -353,10 +384,13 @@ para no depender de que termine todo el proceso.
 
 ## 9. Criterios de aceptación
 
-1. Existe un camino de entrenamiento que no usa PyTorch, autograd ni Adam.
+1. Existe un bucle integrado cuyo módulo de entrenamiento no importa PyTorch ni
+   usa autograd o Adam; la carga heredada de datos puede usar tensores Torch en
+   la frontera, que se convierten a NumPy.
 2. La actualización de pesos se realiza mediante un circuito Qibo verificable.
-3. La actualización cuántica coincide con la actualización clásica sobre la
-   rejilla discretizada.
+3. La actualización cuántica coincide con su referencia clásica sobre la rejilla
+   discretizada **modular** implementada. Esto no valida el clipping descrito en
+   la propuesta original.
 4. La QCNN reduce la pérdida y obtiene métricas de test con el nuevo método.
 5. Se ejecutan presupuestos ampliados y varias semillas, con resultados
    persistidos y analizados.
@@ -376,13 +410,22 @@ para no depender de que termine todo el proceso.
 
 ## 11. Decisiones abiertas para el tutor
 
-1. ¿Se acepta QGD con medición y control clásico como «entrenamiento no
-   híbrido», o se exige un único circuito coherente?
-2. ¿COBYLA/SPSA son aceptables como baselines sin gradientes?
-3. ¿Cuántas semillas y qué presupuesto se consideran suficientes?
-4. ¿Se conserva Adam como referencia comparativa en la memoria?
-5. ¿Se prioriza QGD sobre el modelo completo o se limita a un modelo reducido
-   como prueba de concepto?
+La dirección general —preparar ejecución en hardware real y evitar la
+actualización clásica de pesos— está establecida por el tutor, según la aclaración
+del responsable. Siguen abiertas las decisiones de implementación:
+
+1. ¿Qué dispositivo/back-end real y restricciones de compilación, conectividad,
+   profundidad y shots se tomarán como objetivo inicial?
+2. ¿Qué algoritmo concreto de actualización en circuito es aceptable? La
+   permutación modular implementada difiere del clipping propuesto y requiere
+   revisión; no asumir que ya fue aprobada.
+3. ¿Qué procesamiento clásico de mediciones, estimación de gradientes y control
+   del bucle es necesario y compatible con la meta del tutor?
+4. ¿COBYLA/SPSA son aceptables solo como baselines comparativos?
+5. ¿Cuántas semillas y qué presupuesto experimental se consideran suficientes?
+6. ¿Se conserva Adam únicamente como referencia histórica/comparativa?
+7. ¿Se prioriza primero un circuito reducido compatible con el hardware o la
+   arquitectura QCNN completa?
 
 ## 12. Trazabilidad
 
@@ -390,4 +433,7 @@ para no depender de que termine todo el proceso.
 - Repositorio: `C:\Users\jadve\Documents\UPO\qml-interface-tfg`.
 - Punto de partida: commit `8b0e51d`.
 - Registro técnico: `docs/TFG-technical-log.md`, sección 21.
-- Estado: planificado, pendiente de implementación y ejecución.
+- Estado: M1-M4 implementados y validados unitariamente; objetivo de hardware
+  confirmado, pero el código aún no está preparado/verificado en hardware; quedan
+  por definir la actualización concreta y la evaluación experimental. El detalle está actualizado en la
+  sección 23 de `docs/TFG-technical-log.md`.

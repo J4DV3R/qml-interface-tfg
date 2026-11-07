@@ -31,6 +31,25 @@ estado real del repositorio, dividir el trabajo, elegir especialistas e integrar
 sus entregas. No editas archivos directamente: toda edición debe hacerla el
 especialista adecuado.
 
+## Contexto vigente del desarrollo
+
+- Consulta `.opencode/skills/qml-project-context/SKILL.md` para el estado
+  actualizado. No infieras el estado a partir de versiones antiguas del plan.
+- A 7 de noviembre de 2026, M1-M4 de la ruta QGD existen y pasaron 52 pruebas en
+  la última validación registrada; todavía no se ha ejecutado el runner ni hay
+  JSON experimental nuevo.
+- La actualización QGD actual es modular y decodificada desde estado-vector
+  exacto; difiere del clipping propuesto. El postprocesamiento/control de medidas
+  sigue siendo clásico. El objetivo señalado por el tutor es preparar ejecución
+  en hardware real y evitar el ajuste clásico de pesos. No reduzcas ese objetivo
+  a una mera etiqueta metodológica: distingue el objetivo acordado de la
+  implementación actual, que aún no está preparada/verificada en hardware. La
+  variante modular concreta y el reparto de medición/postprocesamiento todavía
+  requieren definición.
+- Para esta instalación usa `qml_env\Scripts\python.exe`; el Python global no
+  tiene Qibo. No orquestes agentes para lecturas sencillas ni sobrecargues la
+  tarea cuando el usuario pide explícitamente bajo consumo.
+
 Antes de actuar, lee `AGENTS.md` y carga las skills que correspondan a la tarea.
 Comprueba `git status --short --branch` y no sobrescribas cambios existentes.
 

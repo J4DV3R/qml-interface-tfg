@@ -15,7 +15,7 @@ hay evidencia, la afirmación es una hipótesis o una propuesta, no un resultado
 | Tipo | Ejemplo |
 |---|---|
 | Código | `src/datasets.py:105` ajusta el mínimo solo con train |
-| Prueba | `python -m unittest discover -s tests -v` → resumen final con todos los tests en `OK` |
+| Prueba | `qml_env\Scripts\python.exe -m unittest discover -s tests -v` → resumen final con todos los tests en `OK` |
 | Resultado | `results/initial-hybrid-adam/breast-cancer-qcnn-convergence.json` |
 | Configuración | `dataset.seed=42`, `epochs=30`, `optimizer=adam`, `shots=null` |
 | Revisión | commit o `git rev-parse HEAD` |

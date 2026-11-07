@@ -527,3 +527,161 @@ repeticiones de experimentos antiguos deben guardarse en
 `results/quantum-training/`.
 
 **Estado:** planificado. No se ha modificado todavía el código de entrenamiento.
+
+## 22. Estado de M1-M3 antes de integrar el runner (registro histórico)
+
+**Fecha:** 7 de noviembre de 2026.
+
+**Alcance — Implementado:** se incorporaron los componentes M1-M3 del diseño:
+
+- `src/qcnn_engine.py` contiene el motor QCNN de Qibo/NumPy, con simulación,
+  pérdida y gradiente parameter-shift. `src/hybrid_model.py` delega ahora la
+  simulación al motor, manteniendo el wrapper legado.
+- `src/optimizers.py` ofrece optimizadores autónomos, incluidos COBYLA y SPSA;
+  aún no están conectados a un runner de entrenamiento.
+- `src/quantum_update.py` implementa la actualización discreta mediante una
+  permutación modular reversible.
+
+**Validación — Validado:** existen pruebas para estos componentes en
+`tests/test_quantum_engine.py`, `tests/test_optimizers.py` y
+`tests/test_quantum_update.py`. Tras los ajustes menores posteriores en
+comentarios y pruebas, la suite completa pasó con 41 pruebas mediante
+`qml_env\\Scripts\\python.exe -m unittest discover -s tests -v`. También pasaron
+`qml_env\\Scripts\\python.exe -m compileall src tests` y `git diff --check`.
+
+**Desviación y limitación de la actualización:** frente al mapeo con clipping
+del plan, la implementación conserva el registro del gradiente y actualiza el
+código del peso de forma modular. La conservación del gradiente hace reversible
+la transformación. En cambio, la propuesta original
+`|theta_code>|grad_code> -> |theta_new_code>|0>` no es inyectiva y no puede ser
+unitaria como está formulada. La codificación del gradiente recorta los valores
+al intervalo finito configurado; para gradientes fuera de ese intervalo se
+pierde magnitud y cambia la actualización efectiva. La variante modular se
+desvía del plan y la aprobación del tutor está pendiente; no se registra como
+cumplimiento total del diseño ni como aceptación de «no híbrido».
+
+**Estado en la fecha de esta entrada:** `src/training.py` continúa usando
+PyTorch con Adam o SGD. En este punto de la secuencia de trabajo no existían
+`experiments/run_quantum_training.py` ni `tests/test_quantum_training.py`; por
+tanto, todavía no había runner ni entrenamiento integrado. No se ejecutó ningún
+experimento nuevo ni se generó un JSON de resultados. M1-M3 estaban
+**Implementados** y **Validados** por la suite indicada, pero no había evaluación
+experimental. La integración M4 posterior se registra en la sección 23.
+
+**Siguientes tareas:** M4, integrar los componentes en el runner y el flujo de
+entrenamiento experimental; M0, obtener la decisión del tutor sobre la variante
+modular y sobre el uso de la denominación «no híbrido».
+
+## 23. Integración M4 del entrenamiento con QGD discreto
+
+**Fecha:** 7 de noviembre de 2026.
+
+La sección 22 registra el estado de M1-M3 anterior a esta integración. Sus
+menciones a la ausencia del runner y de las pruebas de integración quedan
+actualizadas por esta entrada.
+
+**Alcance — Implementado:** M1-M4 están integrados en los módulos
+`src/qcnn_engine.py`, `src/optimizers.py`, `src/quantum_update.py` y
+`src/quantum_training.py`. La orquestación publica `QuantumTrainingConfig`,
+`QuantumTrainingResult`, `train_quantum_qcnn` y `derive_execution_seed`. El
+runner de línea de comandos se encuentra en
+`experiments/run_quantum_training.py`. Las pruebas asociadas son
+`tests/test_quantum_engine.py`, `tests/test_optimizers.py`,
+`tests/test_quantum_update.py` y `tests/test_quantum_training.py`.
+
+**Validación — Validado unitariamente:** tras añadir métricas de validación y
+pruebas de ruido/flujo de test, la suite completa pasó con 52 pruebas:
+
+```powershell
+qml_env\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+También terminó correctamente la compilación sintáctica:
+
+```powershell
+qml_env\Scripts\python.exe -m compileall src experiments tests
+```
+
+`git diff --check` pasó; la salida incluyó únicamente avisos de conversión
+LF/CRLF en documentación preexistente. Estas comprobaciones validan el código y
+su integración unitaria, no el comportamiento experimental del entrenamiento.
+
+**Flujo y frontera clásica-cuántica:** `src/quantum_training.py` no importa
+PyTorch. El runner importa `src.datasets` al cargarse, y este loader importa
+PyTorch; la conversión de sus tensores ocurre después, en la frontera de entrada
+al entrenamiento. Para inicializar la primera actualización, Qibo ejecuta los circuitos
+del gradiente parameter-shift en modo exacto y sin ruido; el host calcula las
+diferencias. La actualización ejecuta un circuito reversible de Qibo por cada
+peso, en estado-vector exacto y sin shots. El host obtiene el estado de salida
+mediante `argmax` y decodifica el código del peso. Tras cada actualización, las
+pérdidas de entrenamiento y validación se evalúan con shots. Los gradientes de
+las actualizaciones posteriores se estiman con circuitos parameter-shift
+muestreados: el host lee las expectativas, calcula las diferencias y acumula las
+derivadas. El cálculo de pérdidas, la acumulación, el control del bucle, la
+selección del checkpoint con la pérdida de validación y la parada también son
+clásicos.
+
+El runner carga los datos a través de `src.datasets`, que conserva tensores
+PyTorch por compatibilidad con la pipeline heredada, y los convierte a NumPy en
+la frontera con el entrenamiento nuevo. La API `train_quantum_qcnn` no acepta
+datos de test. El runner selecciona el checkpoint con validación y evalúa el
+test una sola vez al finalizar el entrenamiento.
+
+**Métricas:** el historial registra pérdida y accuracy, precision, recall y F1
+para train y validation en cada paso, a partir de la misma pasada de predicción
+muestreada. El JSON del runner añade las métricas de test en la evaluación final.
+El checkpoint continúa seleccionándose solo por pérdida de validation. El CLI
+permite configurar ruido depolarizante para gradientes posteriores y evaluaciones
+con shots; el gradiente inicial exacto y el circuito de actualización no usan ese
+ruido.
+
+**Límites y desviaciones:** los contadores de ejecuciones de circuitos son
+estimaciones estructurales derivadas de la configuración y del número de
+muestras; no son instrumentación del tiempo de ejecución. La actualización QGD
+usa una permutación reversible con wrap-around modular del peso y conserva el
+registro del gradiente. La codificación satura los gradientes fuera del rango
+finito configurado; esto no equivale a clipping y altera la magnitud efectiva de
+esos gradientes. La variante difiere del plan y requiere contraste con el tutor.
+El postprocesamiento de medidas y el control clásico se hacen explícitos. No se
+afirma que M4 satisfaga el objetivo de extremo a extremo ni que esté listo o
+verificado para hardware real.
+
+**Evaluación — No realizada:** no se ejecutó el CLI ni se lanzó ningún
+experimento M4; tampoco se generó un JSON nuevo. La validación unitaria no debe
+interpretarse como evaluación experimental.
+
+**Siguientes pasos:** concretar una ruta de backend real compatible con la QCNN,
+revisar el circuito de actualización modular y definir qué medición,
+postprocesamiento y control clásico son inevitables. Ejecutar un piloto en
+simulación o hardware solo cuando se solicite y autorice, con configuración y
+destino acordados, sin sobrescribir resultados históricos.
+
+## 24. Aclaración del objetivo de entrenamiento y hardware
+
+**Fecha:** 7 de noviembre de 2026.
+
+El responsable aclara que la intención de evitar un entrenamiento híbrido es
+preparar la ejecución en un ordenador cuántico real. La indicación inicial del
+tutor fue llevar el entrenamiento lo más posible a circuitos cuánticos y
+eliminar el ajuste clásico de los pesos. Esta aclaración establece la dirección
+del proyecto; no constituye una validación del código M4 ni una aprobación de su
+regla modular concreta.
+
+Por tanto, deben distinguirse:
+
+- **Objetivo acordado:** compatibilidad con ejecución en hardware real y pesos
+  actualizados mediante circuitos, evitando una actualización clásica.
+- **Estado implementado:** M4 ejecuta circuitos en el simulador Qibo; el circuito
+  de actualización se decodifica desde el estado-vector exacto mediante
+  postprocesamiento clásico y no usa shots. El módulo de entrenamiento sigue
+  dependiendo de lógica clásica para extraer y combinar información de
+  mediciones, pérdida, selección y control.
+- **Pendiente para acercarse al objetivo:** identificar un backend/dispositivo,
+  verificar compatibilidad de las operaciones y restricciones de hardware,
+  revisar la actualización modular frente a la intención del tutor, y definir
+  explícitamente la frontera clásica necesaria para la lectura de mediciones y
+  el control iterativo.
+
+No llamar a la implementación actual «hardware-ready» ni afirmar que satisface
+el objetivo solo porque no importa PyTorch o porque la actualización se expresa
+como un circuito de simulación.

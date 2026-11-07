@@ -10,14 +10,85 @@ reproducibles de Quantum Machine Learning sobre Qibo. El primer algoritmo en
 desarrollo es una QCNN; la arquitectura deberá permitir incorporar y comparar
 otros algoritmos QML en incrementos posteriores.
 
-## Entrenamiento no híbrido (planificado)
+## Descenso de gradiente cuántico discreto: M1-M4 integrado
 
-La reunión del 6 de noviembre de 2026 fijó el requisito de eliminar PyTorch y
-Adam del entrenamiento: la pérdida se evaluará con Qibo y la actualización de
-pesos se realizará mediante circuitos cuánticos (QGD discreto), con COBYLA y
-SPSA como baselines sin gradientes. El plan completo está en
-[docs/quantum-training-plan.md](docs/quantum-training-plan.md).
-Estado: planificado, pendiente de implementación y ejecución.
+El diseño previsto del descenso de gradiente cuántico discreto (QGD) está
+descrito en [docs/quantum-training-plan.md](docs/quantum-training-plan.md). El
+estado del código es **implementado y validado unitariamente**, pero todavía no
+evaluado mediante experimentos:
+
+- **Implementado (M1-M4):** el motor Qibo/NumPy está en
+  [`src/qcnn_engine.py`](src/qcnn_engine.py), los optimizadores en
+  [`src/optimizers.py`](src/optimizers.py), la actualización QGD discreta en
+  [`src/quantum_update.py`](src/quantum_update.py) y la orquestación del
+  entrenamiento en [`src/quantum_training.py`](src/quantum_training.py). El
+  runner está en
+  [`experiments/run_quantum_training.py`](experiments/run_quantum_training.py).
+  COBYLA y SPSA están disponibles como optimizadores autónomos; no se afirma que
+  estén integrados en el bucle QGD. El wrapper legado
+  [`src/hybrid_model.py`](src/hybrid_model.py) sigue disponible y
+  [`src/training.py`](src/training.py) conserva el entrenamiento clásico con
+  PyTorch y Adam o SGD.
+- **Validado:** las pruebas cubren el motor, los optimizadores, la actualización
+  y el entrenamiento en
+  [`tests/test_quantum_engine.py`](tests/test_quantum_engine.py),
+  [`tests/test_optimizers.py`](tests/test_optimizers.py),
+  [`tests/test_quantum_update.py`](tests/test_quantum_update.py) y
+  [`tests/test_quantum_training.py`](tests/test_quantum_training.py). La suite
+  completa pasó con 52 pruebas mediante
+  `qml_env\Scripts\python.exe -m unittest discover -s tests -v`. También
+  pasaron `qml_env\Scripts\python.exe -m compileall src experiments tests` y
+  `git diff --check`.
+- **Flujo y frontera clásica-cuántica:** el primer gradiente se obtiene mediante
+  parameter-shift exacto y sin ruido con circuitos de Qibo; el host calcula las
+  diferencias. Cada peso se actualiza con un circuito reversible de Qibo,
+  ejecutado en estado-vector exacto, sin shots en ese circuito; el host obtiene
+  el código de salida por `argmax` y lo decodifica. Después de cada actualización,
+  pérdidas y métricas de entrenamiento/validación se calculan en una pasada
+  muestreada por muestra. Los gradientes de las actualizaciones posteriores usan
+  circuitos desplazados con shots; sus medidas se leen y las derivadas se
+  combinan clásicamente. El cálculo de pérdidas,
+  la acumulación de gradientes y el control del bucle, la selección de checkpoint
+  por validación y la parada también son operaciones clásicas.
+- **Límites:** `src/quantum_training.py` no importa PyTorch. El runner importa
+  `src.datasets` al cargarse; este loader importa PyTorch y devuelve tensores
+  heredados, que se convierten a NumPy en la frontera de entrada.
+  La API de entrenamiento no acepta un conjunto test: el runner selecciona el
+  checkpoint con validación y evalúa test una sola vez al final. Los contadores
+  de circuitos son estimaciones estructurales, no instrumentación de ejecución.
+  El objetivo indicado por el tutor es preparar la ejecución en hardware real y
+  realizar el ajuste de pesos mediante circuitos, evitando la actualización
+  clásica. Esta implementación todavía no satisface ese objetivo de extremo a
+  extremo ni ha sido ejecutada en hardware.
+- **Sin evaluación experimental:** no se ha ejecutado el runner ni otro
+  experimento de M4 y no se ha generado un JSON nuevo. La suite unitaria no
+  constituye una evaluación del método.
+
+Ejemplo de ejecución del runner para Iris, un paso QGD, 100 shots en las
+evaluaciones muestreadas, codificación angular y semillas explícitas:
+
+```powershell
+qml_env\Scripts\python.exe -m experiments.run_quantum_training `
+  --dataset iris --max-steps 1 --shots 100 `
+  --noise 0.0 --learning-rate 0.1 --qgd-bits 5 --encoding angle `
+  --dataset-seed 42 --initialization-seed 19 --execution-seed 101 `
+  --output results/quantum-training/iris-angle-1step-shots100.json
+```
+
+Este comando es un ejemplo documentado, **no se ha ejecutado** y el JSON de
+salida no se ha generado. El runner exige una ruta de salida nueva y rechaza
+sobrescribir archivos existentes; también protege los resultados históricos de
+`results/initial-hybrid-adam/`.
+
+> **Desviación del plan y aprobación pendiente.** La actualización de
+> [`src/quantum_update.py`](src/quantum_update.py) usa una permutación modular
+> reversible y conserva el registro del gradiente, en lugar del mapeo con
+> clipping y reinicio del registro propuesto en el plan. La propuesta original
+> no es inyectiva y, por ello, no puede realizarse como una operación unitaria
+> sobre esos registros. Además, la codificación satura los gradientes al rango
+> finito configurado, lo que altera su magnitud cuando quedan fuera de ese rango.
+> La aprobación del tutor sigue pendiente; esta variante no implica cumplimiento
+> total del plan ni aceptación del término «no híbrido».
 
 ## Prototipo QCNN actual
 
@@ -106,8 +177,14 @@ model = QCNNModel(
 
 Con las dependencias de `requirements.txt` instaladas:
 
+En este checkout el entorno verificado es `qml_env`. El Python global no tiene
+Qibo; usa `qml_env\Scripts\python.exe` (o activa ese entorno antes de ejecutar
+los comandos). `requirements.txt` es una lista amplia similar a un freeze, no un
+manifiesto mínimo; `scikit-learn` no tiene versión fijada. No se han modificado
+las dependencias en esta revisión.
+
 ```powershell
-python -m unittest discover -s tests -v
+qml_env\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
 ## Experimento comparativo

@@ -26,20 +26,37 @@ Si dos fuentes se contradicen, no elijas una por conveniencia: informa de la
 contradicción, cita ambas y pide una decisión. No inventes una decisión de
 reunión, una validación ni un resultado.
 
-## 3. Estado del entrenamiento: legado híbrido y plan QGD
+## 3. Estado del entrenamiento: legado híbrido y nueva ruta QGD
 
 - **Legado híbrido (implementado y evaluado históricamente):** Qibo construye y
   ejecuta el circuito; PyTorch mantiene los pesos, el grafo de autograd y Adam o
   SGD actualiza los parámetros. El backward usa parameter-shift. Está en
   `src/hybrid_model.py` y `src/training.py`.
-- **Entrenamiento cuántico no híbrido (planificado, no implementado):** eliminar
-  PyTorch y Adam del entrenamiento, evaluar la pérdida con Qibo y actualizar los
-  pesos con QGD discreto, usando COBYLA y SPSA como baselines sin gradientes.
-  Está descrito en `docs/quantum-training-plan.md`.
-- A fecha de esta configuración (7 de noviembre de 2026), **no existen** todavía
-  `src/qcnn_engine.py`, `src/optimizers.py`, `src/quantum_update.py`,
-  `experiments/run_quantum_training.py` ni `tests/test_quantum_training.py`.
-  Comprueba el árbol antes de afirmar que se han creado.
+- **Nueva ruta de entrenamiento con QGD (M1-M4 implementada y validada
+  unitariamente, no evaluada experimentalmente):** `src/qcnn_engine.py` aporta el
+  motor Qibo/NumPy; `src/optimizers.py`, COBYLA/SPSA/Nelder-Mead autónomos;
+  `src/quantum_update.py`, una actualización modular reversible; y
+  `src/quantum_training.py` integra el bucle. El CLI es
+  `experiments/run_quantum_training.py`. La suite completa pasó 52 pruebas en la
+  última validación registrada. No se ha ejecutado el CLI ni generado un JSON de
+  resultados nuevos.
+- Frontera actual: el primer gradiente se calcula mediante parameter-shift
+  exacto y sin ruido; en pasos posteriores los circuitos parameter-shift usan
+  shots. Qibo ejecuta los circuitos de actualización en estado-vector exacto,
+  sin shots; el host lee el estado de salida del simulador y decodifica los
+  códigos. El postprocesamiento de medidas, pérdida, acumulación de gradientes,
+  selección por validación y control del bucle también es clásico. El módulo
+  `src/quantum_training.py` no importa PyTorch, aunque el runner recibe los datos
+  de `src/datasets.py` y convierte sus tensores a NumPy.
+- **Desviación metodológica pendiente:** QGD actualiza en una rejilla modular,
+  conserva el registro del gradiente y satura gradientes fuera de rango; no usa
+  clipping de pesos. El plan original de actualización con clipping no es una
+  permutación unitaria como está formulado. La aceptación del tutor de esta
+  variante concreta sigue pendiente. El objetivo indicado por el tutor es
+  preparar la ejecución en hardware cuántico real y llevar al circuito el ajuste
+  de pesos, evitando una actualización clásica. La implementación actual aún no
+  cumple ese objetivo de extremo a extremo; no presentarla como hardware-ready,
+  totalmente cuántica ni evaluada.
 - Los resultados históricos están congelados en `results/initial-hybrid-adam/`.
   No los sobrescribas ni los presentes como resultados del método nuevo.
 
@@ -66,6 +83,15 @@ JSON de resultados y su configuración.
   Qibo sigue teniendo el mismo tamaño (pooling lógico, no reducción física).
 - `src/hybrid_model.py`: envoltorio PyTorch; expectativa Pauli Z y
   parameter-shift; legado híbrido.
+- `src/qcnn_engine.py`: motor QCNN de Qibo/NumPy, pérdidas y gradientes
+  parameter-shift sin importar PyTorch.
+- `src/quantum_update.py`: actualización QGD modular reversible; no equivale
+  al clipping propuesto y su aceptación está pendiente.
+- `src/quantum_training.py`: bucle integrado QGD, gradiente inicial exacto,
+  gradientes posteriores con shots y selección por validación; el postproceso y
+  control siguen siendo clásicos.
+- `src/optimizers.py`: COBYLA, SPSA y Nelder-Mead como optimizadores autónomos;
+  no integrados en el bucle QGD.
 - `src/execution.py`: `ExecutionConfig` para simulación exacta, shots, ruido
   depolarizante y semilla.
 - `src/training.py`: bucle clásico con Adam o SGD; legado híbrido.
@@ -76,7 +102,12 @@ JSON de resultados y su configuración.
 - `experiments/compare_execution.py`: barrido comparativo de ejecución.
 - `experiments/diagnose_convergence.py`: diagnóstico de convergencia exacta.
 - `experiments/run_final_qcnn.py`: batería focalizada de cierre.
+- `experiments/run_quantum_training.py`: CLI para la nueva ruta QGD; no
+  ejecutado todavía.
 - `tests/test_qcnn.py`: pruebas unitarias del prototipo.
+- `tests/test_quantum_engine.py`, `tests/test_optimizers.py`,
+  `tests/test_quantum_update.py` y `tests/test_quantum_training.py`: pruebas de
+  componentes e integración QGD.
 - `results/initial-hybrid-adam/`: resultados históricos congelados.
 - `results/reproductions/legacy/`: repeticiones de experimentos antiguos.
 - `results/quantum-training/`: resultados del nuevo entrenamiento (vacío por
@@ -130,6 +161,10 @@ Modelos configurados (OpenCode v2.2.5, catálogo verificado):
   `openai/gpt-6-luna`.
 - Fallback: si un modelo no está disponible en una instalación, OpenCode usa el
   modelo seleccionado por la sesión. No inventes IDs ni cambies credenciales.
+- Si el modelo gratuito de un agente informa límite de uso, no lo relances en
+  bucle ni cambies su configuración global. Para tareas pequeñas, continúa en la
+  sesión actual si es viable; para trabajo grande, informa el bloqueo y pide
+  autorización para cambiar la estrategia.
 
 ## 6. Reglas de edición y concurrencia
 
@@ -148,8 +183,9 @@ Antes de editar:
 
 ## 7. Reglas experimentales y trazabilidad
 
-- Trata `docs/experimental-protocol.md` como el protocolo de referencia y
-  `docs/quantum-training-plan.md` como un plan pendiente.
+- Trata `docs/experimental-protocol.md` como el protocolo de referencia. El
+  plan QGD registra componentes M1-M4 implementados, pero la evaluación
+  experimental y la aceptación metodológica/tutoría siguen pendientes.
 - Mantén las particiones train/validation/test y la semilla del dataset. La
   normalización, el PCA y cualquier ajuste se calculan solo con train.
 - No uses test para seleccionar pesos, hiperparámetros ni la mejor época.
@@ -218,11 +254,28 @@ Skills del proyecto:
 Carga una skill cuando la tarea lo requiera; no repitas todo el contexto del
 TFG en cada mensaje.
 
-## 11. Validación rápida
+## 11. Dependencias y entorno
 
-- Pruebas del proyecto: `python -m unittest discover -s tests -v`.
-- Comprobación de sintaxis: `python -m compileall src experiments tests` o
-  `python -m py_compile <archivo>`.
+- El manifiesto `requirements.txt` contiene una lista amplia similar a un freeze
+  (incluye Jupyter y paquetes no importados directamente); no es una lista
+  mínima curada.
+- Imports directos de la aplicación: NumPy, Qibo, SciPy, Torch y scikit-learn.
+  `scikit-learn` aparece sin versión fijada; `torchvision` no tiene import
+  directo localizado en `src/` ni `experiments/`.
+- Entorno verificado de este checkout: `qml_env\Scripts\python.exe`, Python
+  3.14.3, Qibo 0.1.11, NumPy 2.5.3, SciPy 1.18.1, Torch 2.14.0,
+  scikit-learn 1.9.1; `pip check` informó que no hay dependencias rotas.
+- El Python global no tiene Qibo. Ejecuta pruebas/comandos con `qml_env\Scripts\python.exe`
+  o activa explícitamente el entorno del proyecto.
+- No instales, elimines ni fijes dependencias sin aprobación; una futura limpieza
+  debería separar dependencias runtime de notebooks/desarrollo y declarar Python
+  >=3.10 (por la sintaxis de tipos actual).
+
+## 12. Validación rápida
+
+- Pruebas del proyecto: `qml_env\Scripts\python.exe -m unittest discover -s tests -v`.
+- Comprobación de sintaxis: `qml_env\Scripts\python.exe -m compileall src experiments tests`
+  o `qml_env\Scripts\python.exe -m py_compile <archivo>`.
 - Estado de Git: `git status --short --branch` y `git diff --check`.
 - Configuración de OpenCode: `opencode debug config` y
   `opencode debug agents`.
@@ -230,7 +283,7 @@ TFG en cada mensaje.
   de OpenCode. Las pruebas y experimentos se ejecutan solo cuando la tarea lo
   requiera y con aprobación.
 
-## 12. Limitaciones conocidas
+## 13. Limitaciones conocidas
 
 - El pooling es lógico: Qibo mantiene el registro completo y no reduce la
   memoria del vector de estado.
@@ -242,6 +295,8 @@ TFG en cada mensaje.
 - La simulación es local en CPU y no representa hardware cuántico real.
 - Los resultados históricos usan pocas semillas y un único test; no permiten
   afirmaciones fuertes de significación.
-- El plan de QGD, COBYLA y SPSA está pendiente de implementación y evaluación.
+- La ruta QGD M1-M4 está implementada y validada unitariamente, pero no evaluada
+  experimentalmente; la actualización modular difiere del clipping propuesto y
+  la aceptación del tutor sigue pendiente.
 - La memoria contiene marcadores pendientes y la bibliografía aún no tiene
   referencias verificadas.
