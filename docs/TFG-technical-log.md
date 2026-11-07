@@ -364,7 +364,7 @@ mezclar objetivos.
 **Batería previa:** se ejecutaron 5 configuraciones reducidas con 2 épocas,
 50 shots cuando procedía, una ejecución exacta y dos semillas muestreadas con
 ruido `0.0`/`0.01`. El resultado se guardó en
-`results/qcnn-validation.json`. Sirve como validación técnica del flujo, no
+`results/initial-hybrid-adam/qcnn-validation.json`. Sirve como validación técnica del flujo, no
 como resultado definitivo de la memoria.
 
 ## 18. Resultado de la prueba intermedia y siguiente experimento
@@ -374,7 +374,7 @@ como resultado definitivo de la memoria.
 Se ejecutó una prueba intermedia con 3 épocas, Adam, tasa de aprendizaje
 `0.03`, 50 y 100 shots, ruido `0.0` y `0.01`, y dos semillas en las
 condiciones muestreadas. El archivo
-`results/iris-qcnn-medium.json` contiene 9 ejecuciones y 5 resúmenes.
+`results/initial-hybrid-adam/iris-qcnn-medium.json` contiene 9 ejecuciones y 5 resúmenes.
 
 La accuracy de test de la QCNN quedó entre `0.50` y `0.567` en esta prueba,
 mientras que la regresión logística alcanzó `1.0` sobre la misma partición.
@@ -397,12 +397,12 @@ para un estudio posterior de ruido o si primero hay que revisar la QCNN.
 Se implementó `experiments/diagnose_convergence.py`, que guarda la curva de
 pérdida de cada configuración y muestra un mensaje al terminar cada número de
 épocas. El resultado se guardará en
-`results/qcnn-convergence.json`, evitando que el progreso dependa de que
+`results/initial-hybrid-adam/qcnn-convergence.json`, evitando que el progreso dependa de que
 termine todo el experimento.
 
 ## 19. Batería final propuesta
 
-La prueba `results/qcnn-noisy-convergence-5epochs.json` comparó una ejecución
+La prueba `results/initial-hybrid-adam/qcnn-noisy-convergence-5epochs.json` comparó una ejecución
 exacta con dos repeticiones de 50 shots y ruido depolarizante `0.01`, usando
 cinco épocas. La ejecución exacta redujo la pérdida de `1.208` a `1.086` y
 obtuvo `0.533` de accuracy en test. Las dos ejecuciones ruidosas obtuvieron
@@ -470,3 +470,60 @@ convergencia, variabilidad, comparación de codificaciones y robustez frente a
 ruido. La primera versión experimental de la QCNN puede considerarse
 cerrada; las mejoras de rendimiento y las arquitecturas de más qubits pasan a
 ser trabajo futuro.
+
+## 21. Requisito de entrenamiento no híbrido
+
+**Fecha:** 6 de noviembre de 2026.
+
+**Origen:** reunión de seguimiento del TFG. El núcleo de la QCNN y la pipeline
+experimental se consideran válidos, pero se pide evitar que el modelo y el
+entrenamiento sean híbridos. En particular, el ajuste de pesos no debe depender
+del descenso de gradientes clásico ni de Adam.
+
+**Situación de partida:** Qibo ejecuta el circuito y calcula expectativas, pero
+PyTorch mantiene los parámetros, construye el grafo de autograd y Adam actualiza
+los pesos. El backward usa parameter-shift, pero el bucle exterior sigue siendo
+una optimización clásica con retropropagación.
+
+**Decisión:** sustituir el entrenamiento híbrido por un camino basado en Qibo y
+NumPy. La pérdida se evaluará ejecutando circuitos cuánticos y la actualización
+de cada peso se realizará mediante un circuito cuántico sobre un registro
+discreto de pesos y gradientes (QGD discreto). Se usarán COBYLA y SPSA como
+baselines sin gradientes. Adam se conserva únicamente como referencia histórica
+de comparación.
+
+**Alcance:** el control clásico del bucle (medición, discretización y parada)
+es inevitable en un simulador. La memoria deberá distinguir con precisión qué
+parte es cuántica y qué parte sigue siendo clásica, sin presentar el resultado
+como un entrenamiento totalmente coherente.
+
+**Plan:** el diseño completo, las alternativas, el protocolo experimental y los
+criterios de aceptación están en
+[`docs/quantum-training-plan.md`](quantum-training-plan.md). El plan incluye
+la extracción de un motor QCNN puro, los optimizadores sin gradientes, el
+prototipo QGD, las pruebas y la repetición de experimentos con presupuestos
+ampliados y más semillas. También define las unidades de comparación para no
+mezclar conceptos: época para Adam y QGD, evaluación para COBYLA e iteración
+para SPSA, con equivalencias en pasadas sobre el entrenamiento y en coste de
+simulación. La comparación se divide en un bloque A de igualdad de pasadas
+sobre los datos y un bloque B de presupuesto ampliado para los métodos sin
+gradientes.
+
+**Experimentos previstos:** Breast Cancer con PCA a cuatro componentes, Adam
+legado como referencia, COBYLA y SPSA con 300--1000 evaluaciones, QGD con
+30--100 pasos, cinco semillas en la batería principal y una condición reducida
+con shots y ruido. Se reportarán media, desviación estándar e intervalos de
+confianza, evitando afirmaciones de significación con pocas semillas.
+
+**Criterio de cierre:** existir un entrenamiento sin PyTorch, autograd ni Adam;
+que la actualización cuántica coincida con la actualización clásica sobre la
+rejilla discretizada; que la QCNN reduzca la pérdida y obtenga métricas de test
+con el nuevo método; y que los resultados queden persistidos y documentados.
+
+**Archivo histórico:** los resultados de la etapa híbrida se conservan
+congelados en `results/initial-hybrid-adam/` y no se sobrescribirán. Las
+repeticiones de experimentos antiguos deben guardarse en
+`results/reproductions/legacy/`, y los resultados del nuevo entrenamiento en
+`results/quantum-training/`.
+
+**Estado:** planificado. No se ha modificado todavía el código de entrenamiento.
