@@ -96,7 +96,11 @@ def save_results(results: dict[str, object], path: str | Path) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", type=Path, default=Path("results/qcnn-convergence.json"))
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("results/reproductions/legacy/qcnn-convergence.json"),
+    )
     arguments = parser.parse_args()
     diagnosis = run_diagnosis()
     save_results(diagnosis, arguments.output)
