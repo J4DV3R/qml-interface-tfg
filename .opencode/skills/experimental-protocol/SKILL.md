@@ -1,0 +1,116 @@
+---
+name: Protocolo experimental
+description: "Preparación, ejecución y registro reproducible de experimentos; lectura correcta de resultados JSON, particiones, semillas y directorios de resultados."
+---
+
+# Protocolo experimental
+
+## Antes de ejecutar
+
+1. Confirma que el usuario ha pedido explícitamente el experimento.
+2. Lee `docs/experimental-protocol.md` y, si aplica,
+   `docs/quantum-training-plan.md`.
+3. Ejecuta `git status --short --branch` y anota la revisión del código.
+4. Congela la configuración: dataset, particiones, semilla de dataset,
+   semillas de inicialización, codificación, optimizador, presupuesto, shots y
+   ruido.
+5. Comprueba que el comando escribe en el directorio correcto y que no
+   sobrescribe resultados históricos.
+6. Pide aprobación si el comando puede tardar mucho, consumir recursos o
+   modificar datos.
+
+## Directorios de resultados
+
+- `results/initial-hybrid-adam/`: resultados históricos congelados. No
+  sobrescribir.
+- `results/reproductions/legacy/`: repeticiones de experimentos antiguos.
+- `results/quantum-training/`: resultados del nuevo entrenamiento cuántico.
+
+Conserva siempre los JSON de origen y los logs. No los edites a mano para
+«corregir» cifras. Si hace falta un reanálisis, crea un informe aparte.
+
+## Comandos de referencia
+
+```powershell
+# Pruebas del proyecto (solo cuando se soliciten)
+python -m unittest discover -s tests -v
+
+# Diagnóstico de convergencia exacta en Iris
+python -m experiments.diagnose_convergence `
+  --output results/reproductions/legacy/qcnn-convergence.json
+
+# Convergencia exacta en Breast Cancer
+python -m experiments.run_final_qcnn `
+  --dataset breast_cancer --encoding angle `
+  --epochs 10 20 30 --seeds 19 `
+  --output results/reproductions/legacy/breast-cancer-qcnn-convergence.json
+
+# Variabilidad entre semillas
+python -m experiments.run_final_qcnn `
+  --dataset breast_cancer --encoding angle `
+  --epochs 30 --seeds 19 23 29 `
+  --output results/reproductions/legacy/breast-cancer-qcnn-seeds.json
+
+# Condición reducida con shots y ruido
+python -m experiments.run_final_qcnn `
+  --dataset breast_cancer --encoding angle `
+  --epochs 5 --seeds 1 2 --shots 50 --noise 0.01 `
+  --output results/reproductions/legacy/breast-cancer-qcnn-noisy.json
+```
+
+No ejecutes la batería completa ni amplíes shots, épocas o semillas sin
+autorización.
+
+## Esquemas JSON observados
+
+Los resultados históricos usan dos familias:
+
+1. Barridos: claves `sweep`, `runs`, `summaries`, `baseline`.
+2. Batería focalizada: claves `dataset`, `model`, `training`, `results`,
+   `baseline`.
+
+Antes de leer un JSON, comprueba sus claves reales. No supongas que todos los
+archivos tienen el mismo esquema.
+
+Campos que deben conservarse o verificarse:
+
+- Dataset: nombre, semilla, fracciones, número de componentes.
+- Modelo: qubits, codificación, ejecución (shots, ruido, semillas).
+- Entrenamiento: optimizador, learning rate, épocas o presupuesto.
+- Resultados individuales: historial de pérdida, pérdida de validación,
+  métricas de validación y test, tiempo.
+- Baseline: mismas particiones y transformaciones.
+- Revisión del código y comando de ejecución.
+
+## Reglas de lectura
+
+- No inventes valores que no estén en el JSON.
+- Calcula agregados solo a partir de los resultados individuales.
+- No mezcles condiciones con distinta partición, semilla, shots, ruido o
+  presupuesto.
+- Distingue semilla de dataset, semilla de inicialización y semilla de
+  ejecución.
+- Reporta media, desviación o intervalo solo si hay datos suficientes.
+- No presentes una diferencia pequeña como concluyente con pocas semillas.
+- Si falta un metadato, indícalo; no lo rellenes por inferencia.
+
+## Registro de una ejecución
+
+Incluye como mínimo:
+
+- Comando exacto.
+- Revisión de Git.
+- Configuración efectiva.
+- Ruta del JSON y del log.
+- Tiempo de reloj.
+- Resultados individuales y agregados.
+- Limitaciones y observaciones.
+- Si la ejecución se interrumpió, estado parcial y causa.
+
+## Después de ejecutar
+
+1. Comprueba que el JSON es válido y contiene la configuración esperada.
+2. No modifiques el JSON de origen.
+3. Registra la evidencia en `docs/TFG-technical-log.md` o en el documento que
+   corresponda, a través del escritor.
+4. Si el resultado contradice la documentación, repórtalo; no lo maquilles.
