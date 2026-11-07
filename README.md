@@ -10,6 +10,15 @@ reproducibles de Quantum Machine Learning sobre Qibo. El primer algoritmo en
 desarrollo es una QCNN; la arquitectura deberá permitir incorporar y comparar
 otros algoritmos QML en incrementos posteriores.
 
+## Entrenamiento no híbrido (planificado)
+
+La reunión del 6 de noviembre de 2026 fijó el requisito de eliminar PyTorch y
+Adam del entrenamiento: la pérdida se evaluará con Qibo y la actualización de
+pesos se realizará mediante circuitos cuánticos (QGD discreto), con COBYLA y
+SPSA como baselines sin gradientes. El plan completo está en
+[docs/quantum-training-plan.md](docs/quantum-training-plan.md).
+Estado: planificado, pendiente de implementación y ejecución.
+
 ## Prototipo QCNN actual
 
 El paquete `src` contiene:
@@ -118,16 +127,20 @@ python -m experiments.compare_execution
 Para guardar los resultados reproducibles en JSON:
 
 ```powershell
-python -m experiments.compare_execution --output results/iris_qcnn.json
+python -m experiments.compare_execution --output results/reproductions/legacy/iris_qcnn.json
 ```
 
+Los resultados originales de esta etapa están congelados en
+`results/initial-hybrid-adam/`; los comandos de reproducción escriben en
+`results/reproductions/legacy/` para no sobrescribirlos.
+
 La batería reducida de validación utilizada antes del experimento base está
-en [results/qcnn-validation.json](results/qcnn-validation.json). No representa
+en [results/initial-hybrid-adam/qcnn-validation.json](results/initial-hybrid-adam/qcnn-validation.json). No representa
 todavía el resultado final: utiliza solo 2 épocas, 50 shots, una ejecución
 exacta y dos semillas para cada condición muestreada.
 
 La prueba intermedia está en
-[results/iris-qcnn-medium.json](results/iris-qcnn-medium.json). Utilizó 3
+[results/initial-hybrid-adam/iris-qcnn-medium.json](results/initial-hybrid-adam/iris-qcnn-medium.json). Utilizó 3
 épocas, 50/100 shots, ruido `0.0`/`0.01` y dos semillas muestreadas. La QCNN
 obtuvo una accuracy de test entre `0.50` y `0.567`, mientras que la regresión
 logística obtuvo `1.0` en la misma partición. Las 3 épocas no permiten evaluar
@@ -144,7 +157,7 @@ Para ejecutarlo y guardar también el progreso por configuración:
 
 ```powershell
 python -m experiments.diagnose_convergence `
-  --output results/qcnn-convergence.json
+  --output results/reproductions/legacy/qcnn-convergence.json
 ```
 
 El experimento usa un problema binario real basado en Iris: 100 muestras,
@@ -188,7 +201,7 @@ Ejemplo para el dataset mayor:
 python -m experiments.run_final_qcnn `
   --dataset breast_cancer --encoding angle `
   --epochs 10 20 30 --seeds 19 `
-  --output results/breast-cancer-qcnn-convergence.json
+  --output results/reproductions/legacy/breast-cancer-qcnn-convergence.json
 ```
 
 Breast Cancer Wisconsin tiene 569 muestras y 30 variables originales. El
