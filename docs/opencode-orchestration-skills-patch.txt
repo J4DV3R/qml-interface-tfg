@@ -1,0 +1,156 @@
+ACTUALIZACIÓN INCREMENTAL DE SKILLS PARA LA ORQUESTACIÓN DEL TFG
+==================================================================
+
+Este es un segundo prompt para OpenCode. Úsalo después de haber aplicado el
+prompt inicial de configuración. Su objetivo es revisar y mejorar la
+orquestación que ya existe, no volver a crearla desde cero.
+
+INICIO DEL PROMPT
+-----------------
+
+La orquestación inicial de agentes de este repositorio ya fue configurada.
+Quiero que audites y refines ahora sus skills para que sean útiles en el TFG,
+eviten instrucciones duplicadas y reduzcan el contexto cargado en tareas que no
+las necesitan.
+
+## Primero inspecciona, luego modifica
+
+1. Revisa `git status` y conserva cualquier cambio existente.
+2. Inspecciona `AGENTS.md`, la configuración de OpenCode, los agentes,
+   comandos y skills que ya existen bajo `.opencode/` (o las rutas equivalentes
+   que use la versión instalada).
+3. Comprueba la versión y el formato actual de OpenCode. Confirma en su
+   documentación oficial cómo se anuncian y cargan las skills en esa versión.
+4. Lee las skills existentes completas y evalúa para cada una: propósito,
+   cuándo se activa, procedimiento, solapamientos, instrucciones obsoletas y
+   relación con los agentes y comandos.
+5. No reemplaces ni regeneres toda la configuración. Modifica solo lo necesario
+   para hacer esta actualización incremental. Si no encuentras la orquestación
+   inicial o detectas una incompatibilidad, informa del problema y trabaja con
+   los archivos que sí existan, sin crear duplicados.
+
+## Contexto del TFG que las skills deben respetar
+
+El proyecto desarrolla una plataforma modular de Quantum Machine Learning sobre
+Qibo, con QCNN como primer algoritmo. Incluye código Python, pruebas, scripts de
+experimentos, resultados JSON, documentación Markdown y una memoria LaTeX en
+`memory/`.
+
+El prototipo histórico usa PyTorch y Adam. El plan vigente propone un motor Qibo
+sin entrenamiento híbrido, QGD discreto y COBYLA/SPSA como referencias. Ese
+cambio sigue siendo un plan mientras el código y los resultados no prueben que
+está implementado. Las skills no deben convertir propuestas en hechos.
+
+Usa como fuentes del estado actual `README.md`, `docs/TFG-technical-log.md`,
+`docs/experimental-protocol.md`, `docs/quantum-training-plan.md`, el código y
+los resultados guardados. La implementación y los artefactos existentes tienen
+prioridad sobre descripciones antiguas; las decisiones explícitas del TFG deben
+marcarse como tales.
+
+## Catálogo objetivo de skills
+
+Deja el contexto estable y breve en `AGENTS.md`, las secuencias guiadas en los
+comandos y los procedimientos reutilizables en skills. No dupliques el contexto
+del proyecto en cada skill. Mantén solo las skills que aporten un procedimiento
+distinto. El catálogo recomendado es:
+
+1. `qml-development`
+   - Para cambios en el motor Qibo/QCNN y su integración.
+   - Explica cómo orientarse en el código, respetar el diseño modular, separar
+     el camino legado del nuevo, identificar compatibilidad necesaria y
+     documentar decisiones técnicas.
+   - No debe repetir toda la arquitectura del proyecto; enlaza rutas concretas
+     y lee solo los módulos pertinentes.
+
+2. `change-validation`
+   - Skill nueva, salvo que ya exista una equivalente bien delimitada.
+   - Para validar cambios de código o documentación sin confundir pruebas de
+     software con experimentos científicos.
+   - Debe recomendar comprobaciones incrementales y baratas primero, comprobar
+     las herramientas disponibles en el proyecto, ejecutar solo lo pertinente,
+     registrar el comando y el resultado y señalar qué no se comprobó.
+   - No ejecuta barridos experimentales ni baterías largas sin petición expresa.
+     No afirma que una prueba pasó si no se ejecutó y observó su resultado.
+
+3. `reproducible-experiments`
+   - Para diseñar, preparar, ejecutar cuando se solicite e interpretar
+     experimentos del TFG.
+   - Integra la trazabilidad de evidencia: dataset y particiones, prevención de
+     fuga de datos, semillas, codificación, configuración, optimizador,
+     presupuesto, métricas, tiempo, comando, revisión del código, archivos de
+     salida y limitaciones.
+   - Conserva los resultados originales. Diferencia datos de entrenamiento,
+     validación y test. No ejecuta una batería costosa sin autorización expresa.
+
+4. `results-to-thesis`
+   - Para transformar resultados ya existentes y verificados en resúmenes
+     estadísticos, tablas, figuras y borradores para la memoria.
+   - Cada cifra y afirmación debe poder rastrearse a un JSON, configuración,
+     comando y método de agregación. Indica unidades, tamaño muestral y
+     variabilidad; no exagera resultados ni omite resultados desfavorables.
+   - No ejecuta experimentos, no inventa valores y no sobrescribe los datos de
+     origen. Separa los resultados preliminares de los finales.
+
+5. `academic-writing-latex`
+   - Para redactar y mantener documentación Markdown y memoria LaTeX en español
+     académico claro, con terminología coherente, citas y referencias cruzadas.
+   - Incluye reglas de bibliografía verificable y compilación/revisión de la
+     memoria. Distingue afirmaciones respaldadas por fuentes, decisiones del
+     proyecto, resultados y limitaciones.
+   - No introduce cifras experimentales sin usar `results-to-thesis` o sin
+     verificar directamente su fuente.
+
+6. `literature-review`
+   - Para preguntas que requieran investigación bibliográfica o actualización
+     del estado del arte; no debe cargarse en tareas rutinarias de código.
+   - Prioriza artículos originales, documentación oficial y fuentes académicas.
+     Registra metadatos comprobables, DOI/enlace y qué afirmación respalda cada
+     fuente. Distingue hechos de interpretación y limitaciones.
+   - Nunca inventa citas, títulos, autores, DOI ni resultados de artículos.
+
+Este catálogo es una guía, no una cuota. Si una skill existente ya cumple bien
+un propósito, consérvala y adapta el nombre solo si es necesario. Si dos skills
+se solapan, fusiónalas en la que tenga el disparador más claro y elimina la
+duplicada solo después de comprobar que ningún agente, comando o instrucción la
+referencia. No añadas más skills salvo que el repositorio muestre una tarea
+recurrente distinta, con procedimiento propio y valor claro; explica ese caso.
+
+## Diseño eficiente de cada skill
+
+- Usa el formato de skill que acepte la versión instalada y una descripción
+  breve que indique cuándo usarla. La descripción debe permitir al agente
+  decidir si aplica; incluye también una indicación breve de cuándo no usarla.
+- Mantén el cuerpo enfocado en pasos de trabajo, decisiones y criterios de
+  salida. Evita textos enciclopédicos y repetir reglas de `AGENTS.md`.
+- Pon conocimiento permanente y común en `AGENTS.md`; no lo copies a todas las
+  skills. Referencia rutas concretas del repositorio en vez de pegar el
+  contenido entero de los documentos fuente.
+- Usa carga bajo demanda: configura a los agentes y comandos para invocar solo
+  la skill pertinente. No precargues todas las skills en cada agente o prompt.
+- No crees scripts, dependencias o índices adicionales solo para justificar
+  una skill. Añádelos únicamente si resuelven una tarea frecuente y verificable
+  con una mejora clara de tiempo o fiabilidad.
+- Mantén explícitas las reglas contra citas, datos o validaciones inventadas,
+  pero colócalas en la fuente común apropiada y remítete a ellas desde las
+  skills especializadas cuando sea suficiente.
+
+## Comprueba integración y entrega
+
+1. Actualiza las referencias en los agentes, comandos o `AGENTS.md` para que
+   apunten a los nombres reales de las skills y las activen solo cuando aplique.
+2. Comprueba que cada skill tiene un propósito no redundante y un disparador
+   reconocible. Comprueba también que las instrucciones de validación distinguen
+   una prueba automática de una ejecución científica.
+3. Valida el formato con las herramientas de diagnóstico de OpenCode disponibles
+   para la versión instalada, si las hay. No ejecutes pruebas del proyecto,
+   compilaciones largas ni experimentos para validar esta actualización.
+4. No cambies modelos, credenciales, configuración global, código del modelo,
+   resultados ni capítulos de la memoria durante esta tarea. No hagas commits.
+5. Al terminar, resume qué skills se conservaron, fusionaron, añadieron,
+   renombraron o retiraron y por qué; indica referencias actualizadas,
+   comprobaciones realizadas y cualquier limitación pendiente.
+
+Aplica ahora esta auditoría y actualización incremental.
+
+FIN DEL PROMPT
+--------------

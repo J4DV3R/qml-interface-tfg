@@ -1,0 +1,197 @@
+PROMPT PARA CONFIGURAR LA ORQUESTACIÓN DEL TFG EN OPENCODE
+================================================================
+
+Copia y pega el texto entre INICIO DEL PROMPT y FIN DEL PROMPT en OpenCode,
+abriendo primero el repositorio raíz del TFG.
+
+INICIO DEL PROMPT
+-----------------
+
+Quiero que prepares en este repositorio una orquestación de agentes de OpenCode
+especializada en el desarrollo de mi Trabajo de Fin de Grado. Inspecciona el
+proyecto y crea los archivos locales necesarios para que el flujo quede listo
+para usar. No te limites a proponer una configuración: créala, compruébala y
+resume cómo utilizarla.
+
+## Contexto del proyecto
+
+Este repositorio desarrolla una plataforma modular para experimentos
+reproducibles de Quantum Machine Learning sobre Qibo. La QCNN es el primer
+algoritmo. El proyecto contiene código Python, pruebas, experimentos, resultados
+JSON, documentación Markdown y una memoria LaTeX en `memory/`.
+
+Lee, como mínimo, `README.md`, `docs/TFG-technical-log.md`,
+`docs/experimental-protocol.md`, `docs/quantum-training-plan.md`,
+`memory/main.tex`, `memory/preamble.tex` y los capítulos pertinentes antes de
+definir las reglas. Comprueba también el estado de Git y respeta todos los
+cambios existentes, incluidos los no confirmados.
+
+Hay una decisión de alcance importante que debes preservar: el prototipo
+histórico usa PyTorch y Adam, pero el plan vigente propone eliminar ese
+entrenamiento híbrido y desarrollar QGD discreto, con COBYLA y SPSA como
+referencias. El cambio está planificado y no debe describirse como implementado
+hasta que el código y los resultados lo demuestren. Distingue siempre entre
+propuesto, implementado, validado y evaluado.
+
+## Modelos preferidos
+
+Quiero usar principalmente DeepSeek Flash V4.1 y ChatGPT Luna 6. Antes de
+configurarlos:
+
+1. Comprueba la versión instalada de OpenCode y consulta el catálogo real de
+   modelos disponible en esta instalación (por ejemplo, el comando `opencode
+   models` si existe en esta versión). Usa la documentación oficial que
+   corresponda a esa versión para confirmar la sintaxis.
+2. Busca los identificadores exactos `proveedor/modelo` disponibles para esos
+   dos modelos. Los nombres comerciales escritos aquí son preferencias, no
+   identificadores garantizados.
+3. No inventes IDs, no cambies credenciales, no conectes proveedores, no muestres
+   secretos y no modifiques configuración global del usuario.
+4. Si un modelo no está disponible en el catálogo o requiere acceso no
+   configurado, no bloquees la instalación. Deja ese modelo sin asignar,
+   conserva un fallback válido que ya esté disponible y explica exactamente
+   qué asignación queda pendiente para que yo pueda resolverla.
+5. Si ambos están disponibles, asigna ChatGPT Luna 6 al coordinador y a las
+   tareas de revisión académica/metodológica que requieran síntesis cuidadosa;
+   asigna DeepSeek Flash V4.1 al desarrollo rutinario, análisis de código y
+   tareas de ejecución/metodología acotadas. El escritor puede usar Luna 6 para
+   redactar y DeepSeek para una comprobación crítica independiente cuando el
+   flujo lo justifique. No ejecutes dos modelos en paralelo sobre el mismo
+   archivo.
+6. Mantén el mismo modelo por rol para que el comportamiento sea predecible.
+   No fuerces una asignación por agente si la versión instalada no la admite.
+   En ese caso, registra la preferencia en las instrucciones del agente y deja
+   el modelo seleccionado por OpenCode como fallback.
+
+## Estructura deseada
+
+Crea una configuración local del proyecto, usando la estructura y el esquema
+correctos para la versión instalada de OpenCode. Como mínimo, prepara:
+
+- Un `AGENTS.md` de raíz con contexto persistente y reglas estables del TFG, si
+  no existe ya uno. Si ya existe, intégralo con cambios mínimos y conserva su
+  contenido útil.
+- Un archivo de configuración local de OpenCode solo si es necesario para
+  activar agentes, permisos o modelos. No reemplaces configuración existente:
+  intégrala conservando todos los ajustes previos.
+- Agentes bajo `.opencode/agents/` (o la ubicación equivalente oficial de esta
+  versión):
+  - `coordinator`: agente principal; entiende el objetivo, inspecciona el
+    estado, divide el trabajo, decide qué especialistas hacen falta e integra
+    sus entregas. No delega tareas triviales.
+  - `qml-developer`: implementa código Python/Qibo y documenta decisiones
+    técnicas. No presenta como validado algo que no haya sido comprobado.
+  - `methodology`: revisa diseño experimental, particionado, fuga de datos,
+    métricas, semillas, reproducibilidad, límites y análisis estadístico.
+  - `thesis-writer`: redacta documentación Markdown y capítulos LaTeX en
+    español académico claro, basándose solo en fuentes y resultados verificados.
+  - `reviewer`: auditor independiente de código, metodología, evidencia y
+    coherencia entre documentos. Solo lectura.
+  - `literature-researcher`: investigación bibliográfica con fuentes primarias
+    o académicas; devuelve referencias verificables y no inventa citas.
+- Skills del proyecto bajo `.opencode/skills/` (o ubicación equivalente).
+  Manténlas breves, específicas y sin repetir el contexto común de `AGENTS.md`;
+  describe con precisión cuándo debe cargarse cada una para que OpenCode las
+  use bajo demanda y no añada instrucciones irrelevantes a todas las tareas:
+  - `qml-development`: arquitectura y convenciones del código Qibo/QCNN,
+    distinción entre prototipo legado y entrenamiento planificado, y pasos para
+    implementar cambios sin romper la compatibilidad necesaria.
+  - `reproducible-experiments`: diseño y ejecución experimental, particiones,
+    semillas, presupuestos, métricas, límites de coste y registro de metadatos;
+    integra aquí la trazabilidad de evidencia para no duplicar una skill aparte.
+  - `results-to-thesis`: toma resultados ya guardados y verificados, extrae
+    estadísticas de forma reproducible, prepara tablas/figuras y borradores de
+    texto con referencias a los JSON y configuraciones de origen. Nunca ejecuta
+    experimentos ni inventa, redondea sin indicarlo o sobrescribe resultados.
+  - `academic-writing-latex`: redacta Markdown y LaTeX en español académico,
+    mantiene terminología y estructura de la memoria, gestiona citas y
+    bibliografía verificable, y comprueba referencias cruzadas y compilación.
+  - `literature-review`: busca y evalúa fuentes primarias/académicas para el
+    estado del arte, devuelve referencias verificables y distingue hechos,
+    interpretaciones y limitaciones. Úsala solo cuando la tarea requiera
+    investigación bibliográfica.
+- Comandos reutilizables bajo `.opencode/commands/` (o equivalente):
+  `/plan-task`, `/implement`, `/validate`, `/record-results`, `/write-results`
+  y `/review-thesis`. Cada comando debe indicar qué lee, qué puede modificar,
+  sus pasos y qué evidencia devuelve.
+
+Adapta nombres o formatos solo cuando la versión instalada lo requiera y deja
+constancia del mapeo en el resumen final.
+
+## Reglas de orquestación
+
+1. El coordinador es el único responsable de integrar el resultado y comunicar
+   el estado final. Delega subtareas concretas con alcance, archivos de entrada,
+   entregable esperado y restricciones explícitas.
+2. No permitas que varios agentes editen a la vez el mismo archivo. El revisor,
+   el investigador bibliográfico y el metodólogo deben ser de solo lectura por
+   defecto. El escritor solo edita documentación/memoria; el desarrollador edita
+   código dentro del alcance asignado.
+3. Los agentes no deben fabricar datos, métricas, citas, referencias, resultados,
+   decisiones de reuniones ni validaciones. Cada afirmación experimental debe
+   señalar el archivo de resultado y la configuración que la respalda. Cada
+   afirmación bibliográfica debe tener una referencia localizable.
+4. Trata `docs/quantum-training-plan.md` como plan, no como prueba de
+   implementación. Contrasta la documentación con el código actual y los
+   resultados guardados. Si hay contradicción, informa y no la resuelvas
+   inventando una decisión.
+5. Mantén la trazabilidad experimental: configuración completa, dataset y
+   particiones, semillas, codificación, optimizador, presupuesto, comando,
+   versión/revisión del código, resultados individuales y agregados, tiempo y
+   limitaciones. Conserva los JSON de origen; genera tablas y figuras a partir
+   de datos trazables.
+6. La investigación debe priorizar documentación oficial, artículos originales
+   y fuentes académicas. Guarda las referencias bibliográficas en el formato
+   que use la memoria; no escribas una referencia en `.bib` sin verificar sus
+   metadatos.
+7. El flujo habitual es: planificar -> investigar/diseñar si hace falta ->
+   implementar -> validar -> ejecutar experimento solo cuando se solicite ->
+   congelar y registrar resultados -> redactar -> revisión independiente ->
+   comprobar compilación LaTeX cuando esté disponible.
+8. Antes de editar, revisa `git status` y lee los archivos objetivo. Protege
+   cambios existentes. No hagas commits, pushes, instalaciones, despliegues ni
+   cambios globales.
+
+## Permisos y límites
+
+- Aplica el principio de mínimo privilegio usando la sintaxis real de esta
+  versión de OpenCode.
+- El revisor y el investigador bibliográfico no deben editar archivos. El
+  metodólogo es de solo lectura salvo que un comando le asigne expresamente un
+  artefacto nuevo.
+- Los comandos de shell deben pedir aprobación cuando puedan modificar datos,
+  instalar paquetes, tardar mucho, consumir recursos sustanciales o sobrescribir
+  resultados. Bloquea o pide aprobación para operaciones destructivas, `git
+  push`, borrados, cambios globales y acceso a secretos.
+- Para instalar esta orquestación, no ejecutes los experimentos del TFG ni toda
+  la batería de pruebas. Valida solo los archivos y la configuración de
+  OpenCode con herramientas oficiales disponibles y comprobaciones ligeras.
+- No agregues dependencias de Python o Node para la configuración.
+- No envíes mensajes a terceros ni subas/publices archivos.
+
+## Calidad y entrega
+
+1. Inspecciona primero la configuración y las instrucciones actuales. Crea los
+   archivos nuevos y modifica lo existente solo si es necesario y de forma
+   mínima.
+2. Asegúrate de que cada agente tiene una descripción que ayude al coordinador
+   a elegirlo, instrucciones concretas, límites de edición y un formato claro de
+   entrega. Evita que todos los agentes repitan el contexto completo del TFG:
+   deja las reglas y el contexto estable en `AGENTS.md`, los procedimientos
+   reutilizables en skills bajo demanda y las secuencias de trabajo en comandos.
+   No cargues todas las skills para cada tarea; usa solo la skill pertinente.
+3. Comprueba que los enlaces y rutas citados en las instrucciones existen o
+   están marcados como pendientes. Comprueba que los IDs de modelos se aceptan
+   por el esquema instalado y que la configuración no invalida la ya existente.
+4. Usa el mecanismo de diagnóstico/configuración de OpenCode que corresponda a
+   su versión, si está disponible. Si no puedes validar un elemento, dilo con
+   precisión; no afirmes que todo funciona.
+5. Al terminar, presenta un resumen breve con: archivos creados/modificados,
+   agentes y skills disponibles, comandos de uso, modelos asignados o pendientes,
+   comprobaciones realizadas y cualquier paso manual que siga siendo necesario.
+
+Empieza ahora por inspeccionar el repositorio y la versión de OpenCode, y luego
+realiza la configuración completa dentro del proyecto.
+
+FIN DEL PROMPT
+--------------
