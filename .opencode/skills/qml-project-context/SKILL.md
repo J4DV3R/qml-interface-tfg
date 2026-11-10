@@ -24,9 +24,10 @@ incorporar otros modelos QML sin rehacer las capas comunes.
    registro de Qibo no se reduce físicamente: el pooling es lógico.
 5. **Ruta legacy:** `src/hybrid_model.py` calcula expectativas Z y parameter-shift
    dentro de autograd de PyTorch; `src/training.py` actualiza con Adam o SGD.
-6. **Ruta QGD M1-M4:** `src/qcnn_engine.py` es el motor NumPy/Qibo sin Torch;
-   `src/quantum_training.py` integra el entrenamiento y
-   `src/quantum_update.py` ejecuta un circuito reversible por peso.
+6. **Ruta QGD M1-M5:** `src/qcnn_engine.py` es el motor NumPy/Qibo sin Torch;
+   `src/quantum_training.py` integra el entrenamiento,
+   `src/quantum_update.py` ejecuta los updates aritméticos reversibles y
+   `src/circuit_execution.py` define el contrato de ejecución medida y recursos.
 7. `src/metrics.py` conserva métricas Torch del legado; el entrenamiento QGD
    calcula métricas binarias NumPy sobre train/validation y el runner calcula
    test una sola vez después de seleccionar por validation.
@@ -42,21 +43,31 @@ incorporar otros modelos QML sin rehacer las capas comunes.
   cuatro componentes ajustado solo con train.
 - **Implementado:** experimentos `compare_execution.py`,
   `diagnose_convergence.py` y `run_final_qcnn.py`.
-- **Implementado y validado unitariamente (M1-M4):** motor puro, optimizadores
-  autónomos COBYLA/SPSA/Nelder-Mead, actualización QGD modular, bucle y CLI
-  (`src/qcnn_engine.py`, `src/optimizers.py`, `src/quantum_update.py`,
-  `src/quantum_training.py`, `experiments/run_quantum_training.py`). La última
-  validación registrada pasó 52 pruebas mediante
-  `qml_env\Scripts\python.exe -m unittest discover -s tests -v`; `compileall`
-  y `git diff --check` también pasaron.
-- **No evaluado:** no se ha ejecutado el CLI ni hay JSON nuevo bajo
-  `results/quantum-training/`.
-- **Frontera actual:** primer gradiente parameter-shift exacto/sin ruido;
-  gradientes de pasos posteriores con circuitos y shots. El circuito QGD se
-  simula en estado-vector exacto y el host decodifica el código de salida por
-  `argmax` (no se usa una puerta de medida ni shots en ese update). El host
-  también acumula derivadas, pérdidas, selección por validation y control del
-  bucle. No describirlo como entrenamiento totalmente cuántico.
+- **Implementado y validado unitariamente (M1-M5):** motor puro, optimizadores
+  autónomos COBYLA/SPSA/Nelder-Mead, actualización QGD modular, executor medido,
+  bucle y CLI. La suite completa pasó 92 pruebas el 10 de noviembre de 2026
+  mediante `qml_env\Scripts\python.exe -m unittest discover -s tests -v`,
+  además de `compileall` y `git diff --check`, en un árbol sucio basado en
+  `164eaee2b05ed53f9950afe8a272ca91f5e292df`; 73 y 88 son conteos históricos
+  (véase la sección 29 del log).
+- **Perfiles exploratorios, no evaluación de rendimiento:** se ejecutaron cinco
+  JSON de dos pasos y 100 shots: cuatro de Iris (dos codificaciones y ruido `0`
+  o `0.001`) y uno de Breast Cancer (angular, ruido `0`). Están en
+  `results/quantum-training/`; solo permiten inspeccionar flujo/coste. No hay
+  evaluación de convergencia ni ejecución en hardware.
+- **Screens S0/G0/U0, parciales:** 12 JSON válidos y 15 logs; S0 incompleto,
+  G0 completo para el bloque definido y U0 con tres fallos y una sola ejecución
+  válida. No evalúan test y no son evaluación de rendimiento. Con `b=5/lr=0.1`
+  el delta entero de QGD es cero y los pesos solo se cuantizan. El ruido de
+  Qibo se muestrea una vez por ejecución, no por shot. Véanse las secciones
+  28-29 del log.
+- **Frontera actual:** sin executor, el gradiente inicial es exacto/sin ruido,
+  gradientes posteriores usan shots si se configuran, y el update se simula
+  exactamente. `--measured-execution`, o ruido solicitado mayor que cero, activa
+  counts finitos para los gradientes, predicciones y actualización. El host
+  prepara y decodifica registros, calcula/acumula gradientes y pérdidas,
+  selecciona por validation y controla el bucle. No describirlo como
+  entrenamiento totalmente cuántico.
 - **Desviación QGD:** actualización modular reversible que conserva el registro
   del gradiente; gradientes fuera de rango se saturan. No equivale al clipping
   propuesto; requiere una decisión sobre esta variante concreta. El objetivo del
@@ -106,21 +117,39 @@ equivalentes.
   aparición de puerta parametrizada.
 - El pooling no reduce la memoria del vector de estado.
 - Solo clasificación binaria; no hay multiclase ni minibatches.
-- El ruido es depolarizante después de `RY`, `RZ` y `CNOT`; no hay ruido de
-  medición, amplitude damping ni phase damping.
+- En M5, el ruido local de sensibilidad es un canal depolarizante de una qubit
+  después de cada puerta lógica en cada qubit tocado; no está calibrado ni
+  pretende representar fielmente hardware. No se modelan errores de medición,
+  amplitude damping ni phase damping.
 - Simulación local en CPU; no es hardware cuántico real.
 - Pocas semillas y una sola partición de test en los resultados históricos.
-- El método QGD nuevo aún no tiene evaluación experimental ni ejecución en
-  hardware real. El objetivo de hardware y de ajuste de pesos en circuito viene
-  indicado por el tutor; la variante modular concreta y las operaciones host
-  admisibles necesitan definirse y contrastarse antes de afirmar cumplimiento.
+- El método QGD tiene cinco perfiles exploratorios y screens parciales, pero no
+  evaluación de convergencia/rendimiento ni ejecución en hardware real. No
+  existe adaptador de proveedor, selección de backend, transpilación ni
+  validación de conectividad o base de puertas. El objetivo de hardware y de
+  ajuste de pesos en circuito viene indicado por el tutor; la variante modular
+  concreta y las operaciones host admisibles necesitan definirse y contrastarse
+  antes de afirmar cumplimiento.
+- Con `b=5/lr=0.1`, `weight=[-π,π]` y `grad=[-1,1]`, el delta entero de QGD es
+  cero para los 32 códigos de gradiente; los pesos solo se cuantizan. U0 tiene
+  tres fallos y una sola ejecución válida. La configuración oficial y la
+  política de U0 siguen pendientes del tutor.
+- En Qibo 0.1.11 el ruido depolarizante se muestrea una vez por ejecución del
+  circuito, no por shot; los shots comparten la misma trayectoria de Pauli y no
+  promedian realizaciones de ruido. Una `mode_probability=1.0` no demuestra
+  ausencia de ruido.
+- En el árbol actual `requirements.txt` está modificado (122→51 líneas,
+  UTF-16LE→UTF-8) y aprobado para el commit de cierre del 10 de noviembre de
+  2026. `load_binary_iris()` fue eliminado de `src/datasets.py`; la ruptura se
+  documenta como intencionada y debe usarse `load_binary_iris_splits()`.
 - `src/quantum_training.py` no importa Torch, pero el runner carga
   `src.datasets`, que importa Torch y devuelve tensores; estos se convierten a
   NumPy en la frontera del entrenamiento.
 - `requirements.txt` contiene una lista amplia similar a un freeze del entorno,
-  no un manifiesto mínimo; `scikit-learn` no está fijado y `torchvision` no tiene
-  import directo en `src/` ni `experiments/`. No limpiar ni actualizar
-  dependencias sin aprobación.
+  no un manifiesto mínimo; `scikit-learn` no está fijado. La versión de HEAD
+  incluía `torchvision` sin import directo en `src/` ni `experiments/`; la
+  versión actual, aprobada para el commit de cierre, elimina el stack Jupyter y
+  `torchvision`. No limpiar ni actualizar dependencias de nuevo sin aprobación.
 
 ## Dónde mirar
 
@@ -130,7 +159,7 @@ equivalentes.
 - Resultados: `results/initial-hybrid-adam/`,
   `results/reproductions/legacy/` y `results/quantum-training/`.
 - Protocolo QGD y decisiones abiertas: `docs/quantum-training-plan.md`,
-  `docs/TFG-technical-log.md` sección 23.
+  `docs/TFG-technical-log.md` secciones 23 y 28-29.
 - Memoria: `memory/main.tex`, `memory/preamble.tex` y `memory/chapters/`.
 
 ## Entorno y dependencias comprobados
@@ -141,8 +170,8 @@ equivalentes.
   SciPy 1.18.1, Torch 2.14.0, scikit-learn 1.9.1; `pip check` informó que no
   hay dependencias rotas.
 - Imports directos necesarios: NumPy, Qibo, SciPy (optimizadores), Torch
-  (legado/loader) y scikit-learn (datasets/baseline). Matplotlib/Jupyter aparecen
-  en `requirements.txt`, pero no se encontraron imports directos en código ni
-  notebooks versionados.
+  (legado/loader) y scikit-learn (datasets/baseline). Matplotlib aparece en
+  `requirements.txt`; el stack Jupyter se eliminó en la versión aprobada. No se
+  encontraron imports directos de Matplotlib en código ni notebooks versionados.
 - El tipado usa sintaxis moderna (`X | Y`); documentar Python >=3.10 si se
   ordena la instalación. El mínimo no está declarado actualmente.

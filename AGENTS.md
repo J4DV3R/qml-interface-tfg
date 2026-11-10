@@ -32,22 +32,40 @@ reunión, una validación ni un resultado.
   ejecuta el circuito; PyTorch mantiene los pesos, el grafo de autograd y Adam o
   SGD actualiza los parámetros. El backward usa parameter-shift. Está en
   `src/hybrid_model.py` y `src/training.py`.
-- **Nueva ruta de entrenamiento con QGD (M1-M4 implementada y validada
-  unitariamente, no evaluada experimentalmente):** `src/qcnn_engine.py` aporta el
-  motor Qibo/NumPy; `src/optimizers.py`, COBYLA/SPSA/Nelder-Mead autónomos;
+- **Nueva ruta de entrenamiento con QGD (M1-M5 implementada y validada
+  unitariamente):** `src/qcnn_engine.py` aporta el motor Qibo/NumPy;
+  `src/optimizers.py`, COBYLA/SPSA/Nelder-Mead autónomos;
   `src/quantum_update.py`, una actualización modular reversible; y
-  `src/quantum_training.py` integra el bucle. El CLI es
-  `experiments/run_quantum_training.py`. La suite completa pasó 52 pruebas en la
-  última validación registrada. No se ha ejecutado el CLI ni generado un JSON de
-  resultados nuevos.
-- Frontera actual: el primer gradiente se calcula mediante parameter-shift
-  exacto y sin ruido; en pasos posteriores los circuitos parameter-shift usan
-  shots. Qibo ejecuta los circuitos de actualización en estado-vector exacto,
-  sin shots; el host lee el estado de salida del simulador y decodifica los
-  códigos. El postprocesamiento de medidas, pérdida, acumulación de gradientes,
-  selección por validación y control del bucle también es clásico. El módulo
-  `src/quantum_training.py` no importa PyTorch, aunque el runner recibe los datos
-  de `src/datasets.py` y convierte sus tensores a NumPy.
+  `src/quantum_training.py` integra el bucle. `src/circuit_execution.py`
+  define el contrato de executor y perfil de recursos; el adaptador disponible
+  usa el simulador Qibo, no un proveedor de hardware. El CLI está en
+  `experiments/run_quantum_training.py`. La validación local completa más
+  reciente pasó 92 pruebas el 10 de noviembre de 2026 sobre un árbol de trabajo
+  sucio basado en `164eaee2b05ed53f9950afe8a272ca91f5e292df`; los conteos 73 y
+  88 son validaciones históricas anteriores. Ver sección 29 de
+  `docs/TFG-technical-log.md`.
+- **Perfiles exploratorios, no evaluación de rendimiento:** hay cinco JSON M5
+  de dos pasos y 100 shots: cuatro perfiles Iris (angular/fase, ruido `0` y
+  `0.001`) y uno Breast Cancer angular sin ruido, todos con una semilla. No
+  establecen convergencia ni comparaciones concluyentes; tampoco hay ejecución
+  QPU.
+- **Screens S0/G0/U0, parciales:** 12 JSON válidos y 15 logs. S0 quedó
+  incompleto (falta la segunda referencia exacta), G0 completó el bloque pareado
+  definido y U0 tiene tres fallos de decodificación y una sola ejecución válida.
+  Ninguno evalúa test. No son una evaluación de rendimiento; el inventario está
+  en la sección 28 y el diagnóstico en la sección 29 del log.
+- Frontera actual: sin executor, el primer gradiente usa parameter-shift exacto
+  y sin ruido; gradientes posteriores usan shots cuando se configuran y el
+  update Qibo se ejecuta con estado-vector exacto. `--measured-execution`, o un
+  ruido solicitado mayor que cero, activa un executor de counts finitos para
+  gradientes, predicciones y actualizaciones. El host prepara/decodifica
+  registros, procesa counts, calcula pérdidas, acumula gradientes, selecciona
+  por validación y controla el bucle. El módulo `src/quantum_training.py` no
+  importa PyTorch, aunque el runner recibe los datos de `src/datasets.py` y
+  convierte sus tensores a NumPy.
+- M5 no proporciona adaptador de proveedor, transpilación/routing ni validación
+  de conectividad/base de puertas para dispositivo. El ruido `p=0.001` es una
+  sensibilidad del simulador, no una calibración de hardware.
 - **Desviación metodológica pendiente:** QGD actualiza en una rejilla modular,
   conserva el registro del gradiente y satura gradientes fuera de rango; no usa
   clipping de pesos. El plan original de actualización con clipping no es una
@@ -85,10 +103,13 @@ JSON de resultados y su configuración.
   parameter-shift; legado híbrido.
 - `src/qcnn_engine.py`: motor QCNN de Qibo/NumPy, pérdidas y gradientes
   parameter-shift sin importar PyTorch.
-- `src/quantum_update.py`: actualización QGD modular reversible; no equivale
-  al clipping propuesto y su aceptación está pendiente.
-- `src/quantum_training.py`: bucle integrado QGD, gradiente inicial exacto,
-  gradientes posteriores con shots y selección por validación; el postproceso y
+- `src/quantum_update.py`: actualización aritmética QGD reversible, medida con
+  executor o exacta en el simulador sin executor; no equivale al clipping
+  propuesto y su aceptación está pendiente.
+- `src/circuit_execution.py`: contrato `CircuitExecutor`, perfil lógico de
+  recursos y adaptador de counts del simulador Qibo; no incluye backend QPU.
+- `src/quantum_training.py`: bucle integrado QGD con ejecución exacta o medida,
+  gradientes parameter-shift y selección por validación; postprocesamiento y
   control siguen siendo clásicos.
 - `src/optimizers.py`: COBYLA, SPSA y Nelder-Mead como optimizadores autónomos;
   no integrados en el bucle QGD.
@@ -102,16 +123,16 @@ JSON de resultados y su configuración.
 - `experiments/compare_execution.py`: barrido comparativo de ejecución.
 - `experiments/diagnose_convergence.py`: diagnóstico de convergencia exacta.
 - `experiments/run_final_qcnn.py`: batería focalizada de cierre.
-- `experiments/run_quantum_training.py`: CLI para la nueva ruta QGD; no
-  ejecutado todavía.
+- `experiments/run_quantum_training.py`: CLI para la nueva ruta QGD; ejecutado
+  únicamente en los cinco perfiles exploratorios listados en el log técnico.
 - `tests/test_qcnn.py`: pruebas unitarias del prototipo.
 - `tests/test_quantum_engine.py`, `tests/test_optimizers.py`,
   `tests/test_quantum_update.py` y `tests/test_quantum_training.py`: pruebas de
   componentes e integración QGD.
 - `results/initial-hybrid-adam/`: resultados históricos congelados.
 - `results/reproductions/legacy/`: repeticiones de experimentos antiguos.
-- `results/quantum-training/`: resultados del nuevo entrenamiento (vacío por
-  ahora, con README).
+- `results/quantum-training/`: cinco perfiles exploratorios M5 y README; no son
+  una evaluación concluyente del método.
 - `docs/TFG-technical-log.md`: registro técnico de decisiones.
 - `docs/experimental-protocol.md`: protocolo experimental base.
 - `docs/quantum-training-plan.md`: plan del entrenamiento no híbrido.
@@ -161,10 +182,12 @@ Modelos configurados (OpenCode v2.2.5, catálogo verificado):
   `openai/gpt-6-luna`.
 - Fallback: si un modelo no está disponible en una instalación, OpenCode usa el
   modelo seleccionado por la sesión. No inventes IDs ni cambies credenciales.
-- Si el modelo gratuito de un agente informa límite de uso, no lo relances en
-  bucle ni cambies su configuración global. Para tareas pequeñas, continúa en la
-  sesión actual si es viable; para trabajo grande, informa el bloqueo y pide
-  autorización para cambiar la estrategia.
+- **Preferencia explícita del responsable:** si `qml-developer` no puede usar
+  `opencode/deepseek-v4.1-flash-free` o alcanza su límite gratuito, continúa la
+  tarea con una asignación puntual a `openai/gpt-6-luna#max`. No relances el
+  modelo agotado en bucle ni cambies la configuración global o el modelo
+  configurado del agente. Si Luna 6 Max tampoco está disponible, informa el
+  bloqueo y pregunta cómo proceder.
 
 ## 6. Reglas de edición y concurrencia
 
@@ -184,8 +207,9 @@ Antes de editar:
 ## 7. Reglas experimentales y trazabilidad
 
 - Trata `docs/experimental-protocol.md` como el protocolo de referencia. El
-  plan QGD registra componentes M1-M4 implementados, pero la evaluación
-  experimental y la aceptación metodológica/tutoría siguen pendientes.
+  plan QGD registra M1-M4; el estado M5 y sus cinco perfiles exploratorios se
+  describen en el log técnico. La evaluación de convergencia/rendimiento y la
+  aceptación metodológica/tutoría siguen pendientes.
 - Mantén las particiones train/validation/test y la semilla del dataset. La
   normalización, el PCA y cualquier ajuste se calculan solo con train.
 - No uses test para seleccionar pesos, hiperparámetros ni la mejor época.
@@ -257,11 +281,17 @@ TFG en cada mensaje.
 ## 11. Dependencias y entorno
 
 - El manifiesto `requirements.txt` contiene una lista amplia similar a un freeze
-  (incluye Jupyter y paquetes no importados directamente); no es una lista
-  mínima curada.
+  (la versión de HEAD incluía Jupyter y paquetes no importados directamente);
+  no es una lista mínima curada.
+- **Cambio aprobado en el árbol actual:** `requirements.txt` está modificado
+  respecto a HEAD (122 líneas UTF-16LE → 51 líneas UTF-8; elimina el stack
+  Jupyter y `torchvision`). El responsable aprobó explícitamente incluir este
+  cambio en el commit de cierre del 10 de noviembre de 2026. No lo modifiques de
+  nuevo sin una nueva aprobación.
 - Imports directos de la aplicación: NumPy, Qibo, SciPy, Torch y scikit-learn.
-  `scikit-learn` aparece sin versión fijada; `torchvision` no tiene import
-  directo localizado en `src/` ni `experiments/`.
+  `scikit-learn` aparece sin versión fijada. La versión de HEAD de
+  `requirements.txt` incluía `torchvision`, sin import directo localizado en
+  `src/` ni `experiments/`; la versión aprobada ya no lo incluye.
 - Entorno verificado de este checkout: `qml_env\Scripts\python.exe`, Python
   3.14.3, Qibo 0.1.11, NumPy 2.5.3, SciPy 1.18.1, Torch 2.14.0,
   scikit-learn 1.9.1; `pip check` informó que no hay dependencias rotas.
@@ -290,13 +320,26 @@ TFG en cada mensaje.
 - El parameter-shift vuelve a ejecutar el circuito por cada aparición de puerta
   parametrizada; es el principal cuello de botella.
 - La clasificación implementada es binaria; no hay multiclase ni minibatches.
-- El ruido actual es depolarizante después de `RY`, `RZ` y `CNOT`; no incluye
-  ruido de medición, amplitude damping ni phase damping.
+- El ruido del modo legacy se aplica tras `RY`, `RZ` y `CNOT`. El modo de
+  sensibilidad M5 aplica canales depolarizantes locales tras puertas lógicas a
+  qubits tocados; ninguno incluye ruido de medición, amplitude damping ni phase
+  damping, y el perfil `p=0.001` no es una calibración de hardware. En Qibo
+  0.1.11 el canal se muestrea una vez por ejecución del circuito, no por shot;
+  los shots comparten la misma trayectoria de Pauli y no promedian realizaciones
+  de ruido. Una `mode_probability=1.0` no demuestra ausencia de ruido.
 - La simulación es local en CPU y no representa hardware cuántico real.
 - Los resultados históricos usan pocas semillas y un único test; no permiten
   afirmaciones fuertes de significación.
-- La ruta QGD M1-M4 está implementada y validada unitariamente, pero no evaluada
-  experimentalmente; la actualización modular difiere del clipping propuesto y
-  la aceptación del tutor sigue pendiente.
+- La ruta QGD M1-M5 está implementada y validada unitariamente. Solo hay cinco
+  perfiles exploratorios de dos pasos y screens parciales; no hay evaluación de
+  convergencia o rendimiento ni ejecución en hardware. Con `b=5/lr=0.1`,
+  `weight=[-π,π]` y `grad=[-1,1]`, el delta entero es cero para los 32 códigos
+  de gradiente y los pesos solo se cuantizan. U0 tiene tres fallos y una sola
+  ejecución válida. La actualización modular difiere del clipping propuesto y la
+  aceptación del tutor sigue pendiente.
+- La API pública `load_binary_iris()` fue eliminada de `src/datasets.py` en el
+  árbol actual; no se encontraron usos internos. La ruptura se documenta como
+  intencionada y no se restaura en esta revisión; debe usarse
+  `load_binary_iris_splits()`.
 - La memoria contiene marcadores pendientes y la bibliografía aún no tiene
   referencias verificadas.

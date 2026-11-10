@@ -1,9 +1,10 @@
 """NumPy/Qibo training orchestration for the discrete-QGD QCNN increment.
 
-This module is deliberately independent of PyTorch. The host prepares encoded
-Qibo circuits and computes an exact parameter-shift gradient once to initialize
-the first update. Later parameter-shift gradients use sampled Qibo executions;
-the weight update itself is performed by the reversible Qibo permutation in
+This module is deliberately independent of PyTorch. In the local simulator
+path, an exact parameter-shift gradient initializes the first update; later
+gradients use the configured shots, or remain exact when ``shots=None``. An
+injected measured-circuit executor requires finite shots from the first
+gradient. Weight updates use measured reversible arithmetic circuits from
 ``quantum_update``. Measurement decoding, losses, validation-based checkpoint
 selection, early stopping, and loop control remain classical host operations.
 This is therefore not an all-quantum training procedure.
@@ -27,6 +28,7 @@ from typing import Any
 import numpy as np
 
 if __package__:
+    from .circuit_execution import CircuitExecutor, QiboSimulatorExecutor
     from .execution import ExecutionConfig
     from .qcnn_engine import (
         QCNNConfig,
@@ -34,8 +36,13 @@ if __package__:
         parameter_shift_gradient,
         predict,
     )
-    from .quantum_update import QGDConfig, quantum_update_step
+    from .quantum_update import (
+        QGDConfig,
+        estimate_update_resources,
+        quantum_update_step,
+    )
 else:  # Allows running this file from the src directory during development.
+    from circuit_execution import CircuitExecutor, QiboSimulatorExecutor
     from execution import ExecutionConfig
     from qcnn_engine import (
         QCNNConfig,
@@ -43,16 +50,18 @@ else:  # Allows running this file from the src directory during development.
         parameter_shift_gradient,
         predict,
     )
-    from quantum_update import QGDConfig, quantum_update_step
+    from quantum_update import QGDConfig, estimate_update_resources, quantum_update_step
 
 
 _UINT32_MODULUS = 1 << 32
+_DEFAULT_UPDATE_EXECUTOR = object()
 _SEED_PURPOSES = {
     "initial_gradient": 0,
     "sampled_gradient": 1,
     "train_evaluation": 2,
     "validation_evaluation": 3,
     "test_evaluation": 4,
+    "weight_update": 5,
 }
 
 
@@ -60,14 +69,16 @@ _SEED_PURPOSES = {
 class QuantumTrainingConfig:
     """Budget and sampling settings for :func:`train_quantum_qcnn`.
 
-    ``max_steps`` counts QGD weight updates. ``shots`` is used for post-update
-    train/validation predictions and for gradients prepared for later updates;
-    the initial gradient is always exact and noiseless. The QGD learning rate
+    ``max_steps`` counts QGD weight updates. ``shots`` is used for predictions
+    and parameter-shift gradients after initialization. ``None`` selects exact,
+    noiseless local simulation for all QCNN predictions/gradients; the measured
+    arithmetic update still uses one simulator shot because its API returns
+    counts. An injected adapter requires finite shots. The QGD learning rate
     and finite-register settings belong to ``QGDConfig``.
     """
 
     max_steps: int = 1
-    shots: int = 100
+    shots: int | None = 100
     execution_seed: int = 101
     patience: int | None = None
 
@@ -78,12 +89,14 @@ class QuantumTrainingConfig:
             or self.max_steps < 1
         ):
             raise ValueError("max_steps must be a positive integer.")
-        if (
+        if self.shots is not None and (
             not isinstance(self.shots, (int, np.integer))
             or isinstance(self.shots, (bool, np.bool_))
             or self.shots < 1
         ):
-            raise ValueError("shots must be a positive integer.")
+            raise ValueError("shots must be None or a positive integer.")
+        if self.shots is not None:
+            object.__setattr__(self, "shots", int(self.shots))
         if (
             not isinstance(self.execution_seed, (int, np.integer))
             or isinstance(self.execution_seed, (bool, np.bool_))
@@ -282,6 +295,7 @@ def _make_execution_model(
             depolarizing_probability=noise_probability,
             seed=seed,
         ),
+        executor=model_config.executor,
     )
 
 
@@ -292,7 +306,11 @@ def _circuit_count_estimate(
     validation_size: int,
     steps: int,
     sampled_gradient_calls: int,
-    shots: int,
+    shots: int | None,
+    initial_gradient_shots: int | None,
+    update_shots: int,
+    qgd_config: QGDConfig,
+    resource_profile,
 ) -> dict[str, Any]:
     occurrences = _parameter_occurrences_per_sample(model_config)
     shifts_per_gradient = 2 * occurrences * train_size
@@ -302,14 +320,16 @@ def _circuit_count_estimate(
 
     initial_gradient = {
         "logical_gradient_evaluations": 1,
+        "execution_mode": "exact_simulator" if initial_gradient_shots is None else "finite_shots",
         "base_prediction_logical_passes": 1,
         "base_prediction_circuit_executions_estimate": base_forward,
         "parameter_shift_circuit_executions_estimate": shifts_per_gradient,
-        "shots_per_circuit": None,
+        "shots_per_circuit": initial_gradient_shots,
         "circuit_executions_estimate": gradient_call_circuits,
     }
-    sampled_gradients = {
+    subsequent_gradients = {
         "logical_gradient_evaluations": sampled_gradient_calls,
+        "execution_mode": "exact_simulator" if shots is None else "finite_shots",
         "base_prediction_logical_passes": sampled_gradient_calls,
         "base_prediction_circuit_executions_estimate": (
             sampled_gradient_calls * base_forward
@@ -326,13 +346,21 @@ def _circuit_count_estimate(
     train_eval_circuits = steps * train_size
     validation_eval_circuits = steps * validation_size
     components = {
-        "initial_exact_gradient": initial_gradient,
-        "subsequent_shot_gradients": sampled_gradients,
+        "initial_gradient": initial_gradient,
+        "subsequent_gradients": subsequent_gradients,
         "qgd_weight_updates": {
             "logical_update_steps": steps,
             "circuits_per_step": weight_count,
-            "shots_per_circuit": None,
+            "shots_per_circuit": update_shots,
             "circuit_executions_estimate": update_circuits,
+            "qubits_per_circuit": 2 * qgd_config.n_bits,
+            "shots_total_estimate": update_circuits * update_shots,
+            "circuit_resources": estimate_update_resources(
+                qgd_config,
+                n_weights=weight_count,
+                shots=update_shots,
+                resource_profile=resource_profile,
+            ),
         },
         "post_update_train_evaluation": {
             "logical_batch_evaluations": steps,
@@ -363,8 +391,11 @@ def _circuit_count_estimate(
         "train_samples": train_size,
         "validation_samples": validation_size,
         "steps_completed": steps,
+        "qcnn_qubits_per_circuit": model_config.n_qubits,
+        "declared_resource_profile": resource_profile.to_dict(),
         "components": components,
         "total_training_circuit_executions_estimate": total,
+        "total_weight_update_shots_estimate": update_circuits * update_shots,
     }
 
 
@@ -377,17 +408,22 @@ def train_quantum_qcnn(
     model_config: QCNNConfig,
     qgd_config: QGDConfig,
     training_config: QuantumTrainingConfig,
+    *,
+    update_executor: CircuitExecutor | None | object = _DEFAULT_UPDATE_EXECUTOR,
 ) -> QuantumTrainingResult:
-    """Train a QCNN using one exact initialization gradient, then sampled ones.
+    """Train a QCNN using exact or measured parameter-shift gradients.
 
-    The first update consumes an exact, noiseless parameter-shift gradient.
-    After each update, train and validation losses are evaluated with
-    ``training_config.shots``; if another update will be attempted, its gradient
-    is computed with the same shot budget. Every weight update is delegated to
-    :func:`quantum_update_step`, which executes one deterministic Qibo
-    permutation circuit per scalar weight and classically decodes the output
-    basis state from the exact simulator state vector. Validation loss alone
-    chooses the returned best checkpoint.
+    Without an injected executor, the first parameter-shift gradient is exact
+    and noiseless; later gradients and predictions use ``training_config.shots``
+    (or remain exact when it is ``None``). With an injected measured executor,
+    finite shots are required from the first gradient onward. Every scalar
+    weight update executes a measured arithmetic circuit and decodes counts;
+    an update uses one shot in exact-simulator mode, otherwise the configured
+    shot budget. ``update_executor`` controls only these arithmetic circuits.
+    If omitted, it defaults to ``model_config.executor`` for backwards
+    compatibility; pass ``None`` explicitly to use an unmodified local
+    simulator for updates while retaining a separate QCNN executor. Validation
+    loss alone chooses the returned best checkpoint.
 
     This API intentionally has no test partition argument. Test evaluation is
     reserved for a separate final evaluation after training.
@@ -398,6 +434,29 @@ def train_quantum_qcnn(
         raise TypeError("qgd_config must be a QGDConfig instance.")
     if not isinstance(training_config, QuantumTrainingConfig):
         raise TypeError("training_config must be a QuantumTrainingConfig instance.")
+    if model_config.executor is not None and training_config.shots is None:
+        raise ValueError("an injected circuit executor requires finite shots.")
+    actual_update_executor = (
+        model_config.executor
+        if update_executor is _DEFAULT_UPDATE_EXECUTOR
+        else update_executor
+    )
+    if actual_update_executor is not None and not isinstance(
+        actual_update_executor, CircuitExecutor
+    ):
+        raise TypeError("update_executor must implement CircuitExecutor or be None.")
+    if actual_update_executor is not None and training_config.shots is None:
+        raise ValueError("an injected update executor requires finite shots.")
+    if model_config.execution.noisy and model_config.executor is None:
+        raise ValueError(
+            "QGD arithmetic updates need an injected noise_transform for noisy "
+            "runs; the built-in depolarizing setting alone covers QCNN gates."
+        )
+    if model_config.execution.noisy and model_config.executor is not None:
+        raise ValueError(
+            "configure noise through the injected executor and set the built-in "
+            "depolarizing_probability to zero."
+        )
 
     train_x, train_y = _validate_partition(
         train_features,
@@ -419,15 +478,35 @@ def train_quantum_qcnn(
         raise ValueError(f"initial_weights must have shape {expected_weight_shape}.")
     weights = weights.copy()
 
+    update_shots = training_config.shots if training_config.shots is not None else 1
+    resource_profile = (
+        actual_update_executor.capabilities
+        if actual_update_executor is not None
+        else QiboSimulatorExecutor().capabilities
+    )
+    if training_config.shots is not None:
+        model_resource_profile = (
+            model_config.executor.capabilities
+            if model_config.executor is not None
+            else QiboSimulatorExecutor().capabilities
+        )
+        model_resource_profile.validate_request(
+            model_config.n_qubits, training_config.shots
+        )
+    resource_profile.validate_request(2 * qgd_config.n_bits, update_shots)
+
     start_time = time.perf_counter()
     initial_gradient_seed = derive_execution_seed(
         training_config.execution_seed, "initial_gradient", 0
     )
+    initial_gradient_shots = (
+        training_config.shots if model_config.executor is not None else None
+    )
     exact_model = _make_execution_model(
         model_config,
-        shots=None,
+        shots=initial_gradient_shots,
         seed=initial_gradient_seed,
-        exact_noiseless=True,
+        exact_noiseless=model_config.executor is None,
     )
     # The engine seeds the legacy global NumPy RNG internally. Preserve the
     # caller's generator state while retaining a stable stream for this gradient.
@@ -442,13 +521,26 @@ def train_quantum_qcnn(
     best_step = 0
     stale_steps = 0
     sampled_gradient_calls = 0
-    gradient_mode = "exact_initialization"
+    gradient_mode = (
+        "exact_initialization"
+        if model_config.executor is None
+        else "parameter_shift_shots"
+    )
     gradient_seed = initial_gradient_seed
-    gradient_shots: int | None = None
+    gradient_shots: int | None = initial_gradient_shots
 
     for step in range(1, training_config.max_steps + 1):
-        updated_flat = quantum_update_step(
-            weights.reshape(-1), gradient.reshape(-1), qgd_config
+        update_seed = derive_execution_seed(
+            training_config.execution_seed, "weight_update", step
+        )
+        updated_flat, update_report = quantum_update_step(
+            weights.reshape(-1),
+            gradient.reshape(-1),
+            qgd_config,
+            shots=update_shots,
+            executor=actual_update_executor,
+            seed=update_seed,
+            return_report=True,
         )
         updated = _as_finite_array(updated_flat, "updated_weights")
         if updated.shape != (weights.size,):
@@ -487,6 +579,12 @@ def train_quantum_qcnn(
             "gradient_mode": gradient_mode,
             "gradient_execution_seed": gradient_seed,
             "gradient_shots": gradient_shots,
+            "update_execution_seed": update_seed,
+            "update_shots_per_weight": update_shots,
+            "update_mode_probabilities": list(update_report["mode_probabilities"]),
+            "update_minimum_mode_probability": update_report[
+                "minimum_mode_probability"
+            ],
             "train_evaluation_execution_seed": train_seed,
             "validation_evaluation_execution_seed": validation_seed,
         }
@@ -524,7 +622,11 @@ def train_quantum_qcnn(
         if gradient.shape != expected_weight_shape:
             raise RuntimeError("parameter_shift_gradient returned an unexpected shape.")
         sampled_gradient_calls += 1
-        gradient_mode = "parameter_shift_shots"
+        gradient_mode = (
+            "parameter_shift_exact"
+            if training_config.shots is None
+            else "parameter_shift_shots"
+        )
         gradient_shots = training_config.shots
 
     if best_weights is None:  # max_steps is positive; defensive only.
@@ -538,6 +640,10 @@ def train_quantum_qcnn(
         steps=len(history),
         sampled_gradient_calls=sampled_gradient_calls,
         shots=training_config.shots,
+        initial_gradient_shots=initial_gradient_shots,
+        update_shots=update_shots,
+        qgd_config=qgd_config,
+        resource_profile=resource_profile,
     )
     return QuantumTrainingResult(
         best_weights=best_weights.copy(),

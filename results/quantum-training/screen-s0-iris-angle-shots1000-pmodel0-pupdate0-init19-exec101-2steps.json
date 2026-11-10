@@ -1,0 +1,528 @@
+{
+  "schema_version": 1,
+  "run_mode": "paired_qgd_adam",
+  "dataset": {
+    "name": "iris",
+    "seed": 42,
+    "split_fractions": {
+      "train": 0.7,
+      "validation": 0.15,
+      "test": 0.15
+    },
+    "n_components": null,
+    "preprocessing": "normalization and, for Breast Cancer, standardization/PCA fitted on train only"
+  },
+  "provenance": {
+    "git_revision": "164eaee2b05ed53f9950afe8a272ca91f5e292df",
+    "working_tree_dirty": true,
+    "working_tree_status": [
+      " M .opencode/agents/coordinator.md",
+      " M .opencode/agents/qml-developer.md",
+      " M .opencode/skills/experimental-protocol/SKILL.md",
+      " M .opencode/skills/qml-project-context/SKILL.md",
+      " M AGENTS.md",
+      " M README.md",
+      " M docs/TFG-technical-log.md",
+      " M docs/experimental-protocol.md",
+      " M experiments/run_quantum_training.py",
+      " M requirements.txt",
+      " M results/quantum-training/README.md",
+      " M src/datasets.py",
+      " M src/hybrid_model.py",
+      " M src/qcnn_engine.py",
+      " M src/quantum_training.py",
+      " M src/quantum_update.py",
+      " M tests/test_quantum_training.py",
+      " M tests/test_quantum_update.py",
+      "?? experiments/compare_qgd_adam.py",
+      "?? results/quantum-training/m5-profile-breast-cancer-angle-measured-shots100-noise0-2steps.json",
+      "?? results/quantum-training/m5-profile-iris-angle-measured-shots100-noise0-2steps.json",
+      "?? results/quantum-training/m5-profile-iris-angle-measured-shots100-noise0001-2steps.json",
+      "?? results/quantum-training/m5-profile-iris-phase-measured-shots100-noise0-2steps.json",
+      "?? results/quantum-training/m5-profile-iris-phase-measured-shots100-noise0001-2steps.json",
+      "?? results/quantum-training/screen-s0-iris-angle-exact-pmodel0-pupdate0-init19-exec101-2steps.json",
+      "?? results/quantum-training/screen-s0-iris-angle-exact-pmodel0-pupdate0-init19-exec101-2steps.log",
+      "?? results/quantum-training/screen-s0-iris-angle-shots100-pmodel0-pupdate0-init19-exec101-2steps.json",
+      "?? results/quantum-training/screen-s0-iris-angle-shots100-pmodel0-pupdate0-init19-exec101-2steps.log",
+      "?? results/quantum-training/screen-s0-iris-angle-shots100-pmodel0-pupdate0-init19-exec102-2steps.json",
+      "?? results/quantum-training/screen-s0-iris-angle-shots100-pmodel0-pupdate0-init19-exec102-2steps.log",
+      "?? results/quantum-training/screen-s0-iris-angle-shots1000-pmodel0-pupdate0-init19-exec101-2steps.log",
+      "?? results/quantum-training/screen-s0-iris-angle-shots500-pmodel0-pupdate0-init19-exec101-2steps.json",
+      "?? results/quantum-training/screen-s0-iris-angle-shots500-pmodel0-pupdate0-init19-exec101-2steps.log",
+      "?? results/quantum-training/screen-s0-iris-angle-shots500-pmodel0-pupdate0-init19-exec102-2steps.json",
+      "?? results/quantum-training/screen-s0-iris-angle-shots500-pmodel0-pupdate0-init19-exec102-2steps.log",
+      "?? src/circuit_execution.py",
+      "?? tests/test_circuit_execution.py",
+      "?? tests/test_compare_qgd_adam.py"
+    ],
+    "git_metadata_error": null,
+    "command_argv": [
+      "C:\\Users\\jadve\\Documents\\UPO\\qml-interface-tfg\\qml_env\\Scripts\\python.exe",
+      "-m",
+      "experiments.compare_qgd_adam",
+      "--dataset",
+      "iris",
+      "--dataset-seed",
+      "42",
+      "--train-fraction",
+      "0.70",
+      "--validation-fraction",
+      "0.15",
+      "--test-fraction",
+      "0.15",
+      "--n-components",
+      "4",
+      "--initialization-seed",
+      "19",
+      "--execution-seed",
+      "101",
+      "--encoding",
+      "angle",
+      "--shots",
+      "1000",
+      "--p-model",
+      "0",
+      "--p-update",
+      "0",
+      "--screening",
+      "--epochs",
+      "2",
+      "--adam-learning-rate",
+      "0.03",
+      "--qgd-learning-rate",
+      "0.1",
+      "--qgd-bits",
+      "5",
+      "--output",
+      "results/quantum-training/screen-s0-iris-angle-shots1000-pmodel0-pupdate0-init19-exec101-2steps.json"
+    ]
+  },
+  "seeds": {
+    "dataset": 42,
+    "initialization": 19,
+    "execution": 101,
+    "policy": "dataset, initialization, and execution seeds are configured independently; execution sub-seeds derive from NumPy SeedSequence"
+  },
+  "model": {
+    "n_qubits": 4,
+    "n_outputs": 1,
+    "encoding": "angle",
+    "loss": "MSE against labels -1/+1",
+    "initial_weights_shared_exactly": true,
+    "initial_weights_representation": "initialized values quantized to float32 then promoted to float64; Adam stores the same exactly representable values as float32 and QGD receives float64",
+    "noise": {
+      "p_model": {
+        "probability": 0.0,
+        "model": "none",
+        "eligible_gate_names": [
+          "RY",
+          "RZ",
+          "CNOT"
+        ],
+        "scope": "QCNN circuits only: forward, parameter-shift, train/validation, and final test when present",
+        "methods": [
+          "Adam",
+          "QGD"
+        ],
+        "measurement_noise": false,
+        "calibrated_hardware_noise": false
+      },
+      "p_update": {
+        "probability": 0.0,
+        "model": "none",
+        "eligible_gate_names": "all non-measurement logical gates",
+        "scope": "QGD arithmetic update circuits only; never applied to QCNN circuits or Adam",
+        "methods": [
+          "QGD"
+        ],
+        "measurement_noise": false,
+        "calibrated_hardware_noise": false
+      }
+    },
+    "execution": {
+      "shots": 1000,
+      "mode": "finite_counts",
+      "update_mode": "finite counts using the configured shot budget"
+    }
+  },
+  "configuration": {
+    "epochs_or_qgd_steps": 2,
+    "methods": {
+      "qgd": {
+        "n_bits": 5,
+        "weight_min": -3.141592653589793,
+        "weight_max": 3.141592653589793,
+        "gradient_min": -1.0,
+        "gradient_max": 1.0,
+        "learning_rate": 0.1,
+        "finite_register_semantics": "modular weight-grid subtraction; out-of-range gradients saturate; not weight clipping"
+      },
+      "adam": {
+        "optimizer": "Adam",
+        "learning_rate": 0.03,
+        "optimizer_persists_across_epochs": true
+      }
+    },
+    "screening": true,
+    "qgd_only": false
+  },
+  "initial_weights": [
+    [
+      -0.039810601621866226,
+      0.212934672832489,
+      -0.11306500434875488,
+      -0.21997569501399994
+    ],
+    [
+      -0.0947282686829567,
+      0.10909263044595718,
+      0.1404827982187271,
+      0.019349917769432068
+    ]
+  ],
+  "methods": {
+    "adam": {
+      "epochs_completed": 2,
+      "elapsed_seconds": 5.619260200001008,
+      "history": [
+        {
+          "epoch": 1,
+          "optimization_loss_before_update": 1.3408842086791992,
+          "train_loss": 1.3093695420584612,
+          "train_metrics": {
+            "accuracy": 0.35714285714285715,
+            "precision": 0.1875,
+            "recall": 0.08571428571428572,
+            "f1": 0.11764705882352938,
+            "support": 70.0
+          },
+          "validation_loss": 0.8997549305250884,
+          "validation_metrics": {
+            "accuracy": 0.6,
+            "precision": 0.75,
+            "recall": 0.375,
+            "f1": 0.5,
+            "support": 15.0
+          },
+          "gradient_execution_seed": 501399276,
+          "train_evaluation_execution_seed": 644686299,
+          "validation_evaluation_execution_seed": 3668140810,
+          "shots": 1000,
+          "circuit_executions_estimate": {
+            "gradient_and_training_forward": 2310,
+            "post_update_train_evaluation": 70,
+            "validation_evaluation": 15,
+            "total": 2395,
+            "shots_total_estimate": 2395000
+          }
+        },
+        {
+          "epoch": 2,
+          "optimization_loss_before_update": 1.3102351427078247,
+          "train_loss": 1.2894013112191138,
+          "train_metrics": {
+            "accuracy": 0.37142857142857144,
+            "precision": 0.23529411764705882,
+            "recall": 0.11428571428571428,
+            "f1": 0.15384615384615385,
+            "support": 70.0
+          },
+          "validation_loss": 0.9088554690551279,
+          "validation_metrics": {
+            "accuracy": 0.5333333333333333,
+            "precision": 0.6666666666666666,
+            "recall": 0.25,
+            "f1": 0.36363636363636365,
+            "support": 15.0
+          },
+          "gradient_execution_seed": 3109143429,
+          "train_evaluation_execution_seed": 1845835211,
+          "validation_evaluation_execution_seed": 487677899,
+          "shots": 1000,
+          "circuit_executions_estimate": {
+            "gradient_and_training_forward": 2310,
+            "post_update_train_evaluation": 70,
+            "validation_evaluation": 15,
+            "total": 2395,
+            "shots_total_estimate": 2395000
+          }
+        }
+      ],
+      "circuit_executions_estimate": {
+        "accounting": "Structural estimate only: one base circuit per training sample, two circuits per parameter occurrence and sample for parameter-shift, plus post-update train and validation prediction circuits.",
+        "instrumented": false,
+        "logical_weight_occurrences_per_sample": 16,
+        "per_epoch": {
+          "gradient_and_training_forward_circuit_executions_estimate": 2310,
+          "post_update_train_evaluation_circuit_executions_estimate": 70,
+          "validation_evaluation_circuit_executions_estimate": 15,
+          "total_circuit_executions_estimate": 2395,
+          "shots_per_circuit": 1000,
+          "shots_total_estimate": 2395000
+        },
+        "epochs": 2,
+        "total_training_circuit_executions_estimate": 4790,
+        "total_training_shots_estimate": 4790000
+      },
+      "checkpoint": {
+        "selection": "minimum validation MSE",
+        "epoch": 1,
+        "validation_loss": 0.8997549305250884,
+        "weights": [
+          [
+            -0.06981059908866882,
+            0.1829347312450409,
+            -0.08306500315666199,
+            -0.24997130036354065
+          ],
+          [
+            -0.12472826987504959,
+            0.10909263044595718,
+            0.1404827982187271,
+            0.019349917769432068
+          ]
+        ]
+      },
+      "final_weights": [
+        [
+          -0.09980639815330505,
+          0.15299521386623383,
+          -0.053162481635808945,
+          -0.23426322638988495
+        ],
+        [
+          -0.1547430455684662,
+          0.10909263044595718,
+          0.1404827982187271,
+          0.019349917769432068
+        ]
+      ],
+      "test": {
+        "evaluated": false,
+        "reason": "screening"
+      }
+    },
+    "qgd": {
+      "steps_completed": 2,
+      "elapsed_seconds": 5.867265599998063,
+      "history": [
+        {
+          "step": 1,
+          "train_loss": 1.3289947428571427,
+          "train_metrics": {
+            "accuracy": 0.37142857142857144,
+            "precision": 0.23529411764705882,
+            "recall": 0.11428571428571428,
+            "f1": 0.15384615384615385
+          },
+          "validation_loss": 0.9417184,
+          "validation_metrics": {
+            "accuracy": 0.5333333333333333,
+            "precision": 0.6666666666666666,
+            "recall": 0.25,
+            "f1": 0.36363636363636365
+          },
+          "gradient_mode": "parameter_shift_shots",
+          "gradient_execution_seed": 4137311287,
+          "gradient_shots": 1000,
+          "update_execution_seed": 741750953,
+          "update_shots_per_weight": 1000,
+          "update_mode_probabilities": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "update_minimum_mode_probability": 0.5,
+          "train_evaluation_execution_seed": 644686299,
+          "validation_evaluation_execution_seed": 3668140810
+        },
+        {
+          "step": 2,
+          "train_loss": 1.3363853714285714,
+          "train_metrics": {
+            "accuracy": 0.35714285714285715,
+            "precision": 0.1875,
+            "recall": 0.08571428571428572,
+            "f1": 0.11764705882352938
+          },
+          "validation_loss": 0.9345069333333332,
+          "validation_metrics": {
+            "accuracy": 0.5333333333333333,
+            "precision": 0.6666666666666666,
+            "recall": 0.25,
+            "f1": 0.36363636363636365
+          },
+          "gradient_mode": "parameter_shift_shots",
+          "gradient_execution_seed": 501399276,
+          "gradient_shots": 1000,
+          "update_execution_seed": 301873780,
+          "update_shots_per_weight": 1000,
+          "update_mode_probabilities": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "update_minimum_mode_probability": 0.5,
+          "train_evaluation_execution_seed": 1845835211,
+          "validation_evaluation_execution_seed": 487677899
+        }
+      ],
+      "checkpoint": {
+        "selection": "minimum validation MSE",
+        "step": 2,
+        "validation_loss": 0.9345069333333332,
+        "weights": [
+          [
+            -0.10134169850289698,
+            0.30402509550869006,
+            -0.10134169850289698,
+            -0.3040250955086896
+          ],
+          [
+            -0.10134169850289698,
+            0.10134169850289654,
+            0.10134169850289654,
+            0.10134169850289654
+          ]
+        ]
+      },
+      "final_weights": [
+        [
+          -0.10134169850289698,
+          0.30402509550869006,
+          -0.10134169850289698,
+          -0.3040250955086896
+        ],
+        [
+          -0.10134169850289698,
+          0.10134169850289654,
+          0.10134169850289654,
+          0.10134169850289654
+        ]
+      ],
+      "circuit_executions_estimate": {
+        "accounting": "Estimated Qibo circuit executions; one circuit per sample for a base/prediction pass, two per scalar parameter occurrence and sample for parameter shift, and one per scalar weight for QGD. This is structural accounting, not runtime instrumentation.",
+        "logical_weight_occurrences_per_sample": 16,
+        "shifted_circuits_per_gradient": 2240,
+        "train_samples": 70,
+        "validation_samples": 15,
+        "steps_completed": 2,
+        "qcnn_qubits_per_circuit": 4,
+        "declared_resource_profile": {
+          "declared": {
+            "max_qubits": null,
+            "max_shots": null,
+            "basis_gates": null,
+            "connectivity": null,
+            "metadata": {
+              "adapter": "qibo-local-simulator",
+              "scope": "QGD arithmetic update circuits only",
+              "noise_probability": 0.0
+            }
+          },
+          "validation": {
+            "performed": false,
+            "backend": null
+          },
+          "transpilation": {
+            "performed": false,
+            "backend": null
+          }
+        },
+        "components": {
+          "initial_gradient": {
+            "logical_gradient_evaluations": 1,
+            "execution_mode": "finite_shots",
+            "base_prediction_logical_passes": 1,
+            "base_prediction_circuit_executions_estimate": 70,
+            "parameter_shift_circuit_executions_estimate": 2240,
+            "shots_per_circuit": 1000,
+            "circuit_executions_estimate": 2310
+          },
+          "subsequent_gradients": {
+            "logical_gradient_evaluations": 1,
+            "execution_mode": "finite_shots",
+            "base_prediction_logical_passes": 1,
+            "base_prediction_circuit_executions_estimate": 70,
+            "parameter_shift_circuit_executions_estimate": 2240,
+            "shots_per_circuit": 1000,
+            "circuit_executions_estimate": 2310
+          },
+          "qgd_weight_updates": {
+            "logical_update_steps": 2,
+            "circuits_per_step": 8,
+            "shots_per_circuit": 1000,
+            "circuit_executions_estimate": 16,
+            "qubits_per_circuit": 10,
+            "shots_total_estimate": 16000,
+            "circuit_resources": {
+              "resource_estimate_scope": "Untranspiled Qibo logical instructions; serial depth upper bound. Excludes backend routing/decomposition, calibration, queueing, and provider-specific overhead.",
+              "qubits_per_weight_circuit": 10,
+              "shots_per_weight_circuit": 1000,
+              "weight_circuits": 8,
+              "total_shots_estimate": 8000,
+              "arithmetic_gate_count_estimate": 160,
+              "gate_count_per_circuit_upper_bound": 171,
+              "serialized_depth_upper_bound_estimate": 171,
+              "resource_profile": {
+                "declared": {
+                  "max_qubits": null,
+                  "max_shots": null,
+                  "basis_gates": null,
+                  "connectivity": null,
+                  "metadata": {
+                    "adapter": "qibo-local-simulator",
+                    "scope": "QGD arithmetic update circuits only",
+                    "noise_probability": 0.0
+                  }
+                },
+                "validation": {
+                  "performed": false,
+                  "backend": null
+                },
+                "transpilation": {
+                  "performed": false,
+                  "backend": null
+                }
+              }
+            }
+          },
+          "post_update_train_evaluation": {
+            "logical_batch_evaluations": 2,
+            "samples_per_batch": 70,
+            "shots_per_circuit": 1000,
+            "circuit_executions_estimate": 140
+          },
+          "validation_evaluation": {
+            "logical_batch_evaluations": 2,
+            "samples_per_batch": 15,
+            "shots_per_circuit": 1000,
+            "circuit_executions_estimate": 30
+          }
+        },
+        "total_training_circuit_executions_estimate": 4806,
+        "total_weight_update_shots_estimate": 16000
+      },
+      "test": {
+        "evaluated": false,
+        "reason": "screening"
+      }
+    }
+  },
+  "test_policy": "screening: test is not evaluated",
+  "classical_quantum_boundary": {
+    "adam": "PyTorch Adam updates QCNN weights classically; its forward and parameter-shift circuits use the shared QCNN executor.",
+    "qgd": "QGD's arithmetic update is a measured Qibo circuit; host computes gradients, losses, validation selection, and loop control.",
+    "hardware_status": "local Qibo simulator only; no QPU provider, transpilation, or hardware execution is claimed"
+  }
+}

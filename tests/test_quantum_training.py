@@ -12,6 +12,7 @@ from unittest.mock import patch
 import numpy as np
 
 from src.execution import ExecutionConfig
+from src.circuit_execution import QiboSimulatorExecutor
 from src.qcnn_engine import (
     QCNNConfig,
     initialize_weights,
@@ -132,6 +133,122 @@ class QuantumTrainingTests(unittest.TestCase):
         self.assertEqual(sampled_execution.seed, derive_execution_seed(303, "sampled_gradient", 1))
         self.assertIsNotNone(initial_execution.seed)
 
+    def test_none_shots_keeps_every_simulator_gradient_exact(self):
+        with patch(
+            "src.quantum_training.parameter_shift_gradient",
+            wraps=parameter_shift_gradient,
+        ) as gradient_spy:
+            result = self._train(
+                training_config=QuantumTrainingConfig(max_steps=2, shots=None)
+            )
+
+        self.assertEqual(gradient_spy.call_count, 2)
+        self.assertTrue(
+            all(
+                call.args[3].execution.shots is None
+                for call in gradient_spy.call_args_list
+            )
+        )
+        self.assertEqual(result.history[1]["gradient_mode"], "parameter_shift_exact")
+        updates = result.circuit_executions_estimate["components"]["qgd_weight_updates"]
+        self.assertEqual(updates["shots_per_circuit"], 1)
+        self.assertEqual(updates["shots_total_estimate"], 8)
+        self.assertEqual(result.history[0]["update_mode_probabilities"], [1.0] * 4)
+        self.assertEqual(result.history[0]["update_minimum_mode_probability"], 0.5)
+        self.assertEqual(
+            result.history[0]["update_execution_seed"],
+            derive_execution_seed(101, "weight_update", 1),
+        )
+
+    def test_exact_mode_is_not_accepted_for_an_injected_executor(self):
+        backend_model = QCNNConfig(2, executor=QiboSimulatorExecutor())
+        with self.assertRaisesRegex(ValueError, "requires finite shots"):
+            train_quantum_qcnn(
+                self.features,
+                self.targets,
+                self.validation_features,
+                self.validation_targets,
+                self.initial_weights,
+                backend_model,
+                self.qgd_config,
+                QuantumTrainingConfig(shots=None),
+            )
+
+    def test_injected_executor_samples_initial_gradient_with_training_shots(self):
+        executor = QiboSimulatorExecutor()
+        model_config = QCNNConfig(2, executor=executor)
+        training_config = QuantumTrainingConfig(max_steps=1, shots=16)
+        with patch(
+            "src.quantum_training.parameter_shift_gradient",
+            wraps=parameter_shift_gradient,
+        ) as gradient_spy:
+            result = train_quantum_qcnn(
+                self.features,
+                self.targets,
+                self.validation_features,
+                self.validation_targets,
+                self.initial_weights,
+                model_config,
+                self.qgd_config,
+                training_config,
+            )
+
+        self.assertEqual(gradient_spy.call_count, 1)
+        initial_execution = gradient_spy.call_args.args[3]
+        self.assertEqual(initial_execution.execution.shots, 16)
+        self.assertIs(initial_execution.executor, executor)
+        self.assertEqual(result.history[0]["gradient_mode"], "parameter_shift_shots")
+        self.assertEqual(result.history[0]["gradient_shots"], 16)
+
+    def test_explicit_update_executor_is_separate_from_qcnn_executor(self):
+        qcnn_executor = QiboSimulatorExecutor()
+        update_executor = QiboSimulatorExecutor()
+        model_config = QCNNConfig(
+            2,
+            execution=ExecutionConfig(shots=12),
+            executor=qcnn_executor,
+        )
+        update_calls = []
+
+        def fake_update(weights, gradients, config, **kwargs):
+            del gradients, config
+            update_calls.append(kwargs)
+            updated = np.asarray(weights, dtype=float)
+            return updated, {
+                "mode_probabilities": [1.0] * len(updated),
+                "minimum_mode_probability": 0.5,
+            }
+
+        with (
+            patch(
+                "src.quantum_training.parameter_shift_gradient",
+                return_value=np.zeros((1, 4)),
+            ) as gradient,
+            patch("src.quantum_training.quantum_update_step", side_effect=fake_update),
+            patch(
+                "src.quantum_training.predict",
+                side_effect=lambda weights, features, config: np.zeros(
+                    (len(features), 1)
+                ),
+            ),
+        ):
+            train_quantum_qcnn(
+                self.features,
+                self.targets,
+                self.validation_features,
+                self.validation_targets,
+                self.initial_weights,
+                model_config,
+                self.qgd_config,
+                QuantumTrainingConfig(max_steps=1, shots=12),
+                update_executor=update_executor,
+            )
+
+        self.assertIs(gradient.call_args.args[3].executor, qcnn_executor)
+        self.assertIs(update_calls[0]["executor"], update_executor)
+        self.assertEqual(update_calls[0]["shots"], 12)
+        self.assertIsNot(gradient.call_args.args[3].executor, update_calls[0]["executor"])
+
     def test_best_checkpoint_uses_validation_only_and_api_has_no_test_arguments(self):
         train_losses = iter([0.9, 0.1])
         validation_losses = iter([0.2, 0.4])
@@ -144,9 +261,14 @@ class QuantumTrainingTests(unittest.TestCase):
             loss = next(validation_losses)
             return self.validation_targets - np.sqrt(loss)
 
-        def fake_update(weights, gradients, config):
+        def fake_update(weights, gradients, config, **kwargs):
             del gradients, config
-            return np.asarray(weights, dtype=float) + 1.0
+            del kwargs
+            updated = np.asarray(weights, dtype=float) + 1.0
+            return updated, {
+                "mode_probabilities": [1.0] * len(updated),
+                "minimum_mode_probability": 0.5,
+            }
 
         with (
             patch(
@@ -202,7 +324,7 @@ class QuantumTrainingTests(unittest.TestCase):
         )
         estimate = result.circuit_executions_estimate
         components = estimate["components"]
-        initial = components["initial_exact_gradient"]
+        initial = components["initial_gradient"]
         self.assertEqual(estimate["logical_weight_occurrences_per_sample"], 4)
         self.assertEqual(estimate["shifted_circuits_per_gradient"], 8)
         self.assertEqual(initial["base_prediction_circuit_executions_estimate"], 1)
@@ -211,6 +333,8 @@ class QuantumTrainingTests(unittest.TestCase):
         self.assertEqual(
             components["qgd_weight_updates"]["circuit_executions_estimate"], 4
         )
+        self.assertEqual(components["qgd_weight_updates"]["shots_per_circuit"], 50)
+        self.assertEqual(components["qgd_weight_updates"]["qubits_per_circuit"], 4)
         self.assertEqual(
             components["post_update_train_evaluation"]["circuit_executions_estimate"],
             1,
@@ -277,6 +401,49 @@ class QuantumTrainingTests(unittest.TestCase):
         self.assertEqual(restored["best_weights"], result.best_weights.tolist())
         self.assertIn("components", restored["circuit_executions_estimate"])
 
+    def test_run_provenance_captures_git_state_and_cli_arguments(self):
+        from experiments.run_quantum_training import _collect_run_provenance
+
+        with patch(
+            "experiments.run_quantum_training.subprocess.run",
+            side_effect=(
+                SimpleNamespace(stdout="abc123\n"),
+                SimpleNamespace(stdout=" M src/quantum_update.py\n?? results/pilot.json\n"),
+            ),
+        ) as run:
+            provenance = _collect_run_provenance(
+                ["--dataset", "iris", "--output", "results/pilot.json"]
+            )
+
+        self.assertEqual(provenance["git_revision"], "abc123")
+        self.assertTrue(provenance["working_tree_dirty"])
+        self.assertEqual(
+            provenance["working_tree_status"],
+            [" M src/quantum_update.py", "?? results/pilot.json"],
+        )
+        self.assertEqual(
+            provenance["command_argv"][1:3],
+            ["-m", "experiments.run_quantum_training"],
+        )
+        self.assertEqual(provenance["command_argv"][-4:], [
+            "--dataset", "iris", "--output", "results/pilot.json"
+        ])
+        self.assertEqual(run.call_count, 2)
+
+    def test_run_provenance_marks_unavailable_git_metadata_unknown(self):
+        from experiments.run_quantum_training import _collect_run_provenance
+
+        with patch(
+            "experiments.run_quantum_training.subprocess.run",
+            side_effect=OSError("git unavailable"),
+        ):
+            provenance = _collect_run_provenance(["--output", "out.json"])
+
+        self.assertIsNone(provenance["git_revision"])
+        self.assertIsNone(provenance["working_tree_dirty"])
+        self.assertEqual(provenance["working_tree_status"], [])
+        self.assertIn("git unavailable", provenance["git_metadata_error"])
+
     def test_runner_payload_is_json_serializable_and_tracks_final_test_once(self):
         from experiments.run_quantum_training import build_result_payload
 
@@ -320,7 +487,15 @@ class QuantumTrainingTests(unittest.TestCase):
         )
         self.assertEqual(args.noise, 0.01)
 
-    def test_runner_evaluates_test_once_after_validation_checkpoint(self):
+    def test_runner_accepts_exact_simulator_shots_mode(self):
+        from experiments.run_quantum_training import _build_parser
+
+        args = _build_parser().parse_args(
+            ["--output", "out.json", "--shots", "exact"]
+        )
+        self.assertIsNone(args.shots)
+
+    def test_runner_execution_modes_and_json_are_consistent(self):
         from experiments import run_quantum_training as runner
 
         class FakeTensor:
@@ -355,39 +530,147 @@ class QuantumTrainingTests(unittest.TestCase):
                 "total_training_circuit_executions_estimate": 0
             },
         )
-        events = []
-
-        def fake_train(*args):
-            events.append("train")
-            self.assertEqual(args[5].execution.depolarizing_probability, 0.01)
-            return training_result
-
-        def fake_predict(weights, features, config):
-            events.append("test_predict")
-            self.assertEqual(config.execution.shots, 10)
-            self.assertEqual(config.execution.depolarizing_probability, 0.01)
-            np.testing.assert_array_equal(weights, training_result.best_weights)
-            np.testing.assert_array_equal(features, [[0.5, 0.5]])
-            return np.array([[0.4]])
-
+        scenarios = (
+            {
+                "name": "default-exact-initial-gradient",
+                "options": [],
+                "noise": 0.0,
+                "requested": False,
+                "enabled": False,
+                "gradient_mode": "exact_initialization",
+                "executor_mode": "default_qibo_simulator",
+            },
+            {
+                "name": "measured-noiseless",
+                "options": ["--measured-execution"],
+                "noise": 0.0,
+                "requested": True,
+                "enabled": True,
+                "gradient_mode": "parameter_shift_shots",
+                "executor_mode": "qibo_simulator_measured",
+            },
+            {
+                "name": "measured-with-sensitivity-noise",
+                "options": ["--noise", "0.01"],
+                "noise": 0.01,
+                "requested": False,
+                "enabled": True,
+                "gradient_mode": "parameter_shift_shots",
+                "executor_mode": "qibo_simulator_measured_with_sensitivity_noise",
+            },
+        )
         with tempfile.TemporaryDirectory() as temp_directory:
-            output = Path(temp_directory) / "pilot.json"
-            with (
-                patch.object(runner, "_load_splits", return_value=splits),
-                patch.object(runner, "train_quantum_qcnn", side_effect=fake_train),
-                patch.object(runner, "predict", side_effect=fake_predict),
-                patch.object(
-                    runner,
-                    "build_result_payload",
-                    side_effect=lambda **kwargs: events.append("payload") or {"ok": True},
-                ),
-            ):
-                runner.main(
-                    ["--output", str(output), "--shots", "10", "--noise", "0.01"]
-                )
+            for scenario in scenarios:
+                with self.subTest(mode=scenario["name"]):
+                    events = []
+                    selected_executor = []
 
-            self.assertEqual(events, ["train", "test_predict", "payload"])
-            self.assertEqual(json.loads(output.read_text(encoding="utf-8")), {"ok": True})
+                    def fake_train(*args):
+                        events.append("train")
+                        model = args[5]
+                        training_config = args[7]
+                        self.assertEqual(model.execution.depolarizing_probability, 0.0)
+                        self.assertEqual(training_config.shots, 10)
+                        if scenario["enabled"]:
+                            self.assertIsInstance(model.executor, QiboSimulatorExecutor)
+                        else:
+                            self.assertIsNone(model.executor)
+                        self.assertEqual(
+                            model.executor is not None, scenario["enabled"]
+                        )
+                        if model.executor is not None:
+                            self.assertEqual(
+                                model.executor.noise_transform is not None,
+                                scenario["noise"] > 0.0,
+                            )
+                        selected_executor.append(model.executor)
+                        return training_result
+
+                    def fake_predict(weights, features, config):
+                        events.append("test_predict")
+                        self.assertEqual(config.execution.shots, 10)
+                        self.assertEqual(config.execution.depolarizing_probability, 0.0)
+                        self.assertIs(config.executor, selected_executor[0])
+                        np.testing.assert_array_equal(weights, training_result.best_weights)
+                        np.testing.assert_array_equal(features, [[0.5, 0.5]])
+                        return np.array([[0.4]])
+
+                    output = Path(temp_directory) / f"{scenario['name']}.json"
+                    with (
+                        patch.object(runner, "_load_splits", return_value=splits),
+                        patch.object(runner, "train_quantum_qcnn", side_effect=fake_train),
+                        patch.object(runner, "predict", side_effect=fake_predict),
+                    ):
+                        runner.main(
+                            [
+                                "--output",
+                                str(output),
+                                "--shots",
+                                "10",
+                                *scenario["options"],
+                            ]
+                        )
+
+                    self.assertEqual(events, ["train", "test_predict"])
+                    payload = json.loads(output.read_text(encoding="utf-8"))
+                    model_payload = payload["model"]
+                    self.assertEqual(
+                        model_payload["depolarizing_probability"], scenario["noise"]
+                    )
+                    self.assertEqual(
+                        model_payload["execution_config_depolarizing_probability"],
+                        0.0,
+                    )
+                    self.assertEqual(
+                        model_payload["measured_execution"], scenario["enabled"]
+                    )
+                    self.assertEqual(
+                        model_payload["measured_execution_requested"],
+                        scenario["requested"],
+                    )
+                    self.assertEqual(
+                        model_payload["executor_mode"], scenario["executor_mode"]
+                    )
+                    self.assertEqual(
+                        payload["training"]["initial_gradient_mode"],
+                        scenario["gradient_mode"],
+                    )
+                    self.assertEqual(
+                        payload["training"]["initial_gradient_shots"],
+                        10 if scenario["enabled"] else None,
+                    )
+                    self.assertEqual(
+                        model_payload["simulator_noise"]["requested_probability"],
+                        scenario["noise"],
+                    )
+                    self.assertEqual(
+                        model_payload["simulator_noise"]["applied_to"],
+                        ["QCNN circuits", "QGD arithmetic update circuits"]
+                        if scenario["noise"] > 0
+                        else [],
+                    )
+                    self.assertIn(
+                        "finite shots" if scenario["enabled"] else "exact, noiseless",
+                        payload["classical_quantum_boundary"]["initial_gradient"],
+                    )
+
+    def test_runner_rejects_exact_shots_with_noise_or_measured_mode_before_loading_data(self):
+        from experiments import run_quantum_training as runner
+
+        for extra_options in (["--noise", "0.01"], ["--measured-execution"]):
+            with self.subTest(options=extra_options):
+                with patch.object(runner, "_load_splits") as load_splits:
+                    with self.assertRaises(SystemExit):
+                        runner.main(
+                            [
+                                "--output",
+                                "unused.json",
+                                "--shots",
+                                "exact",
+                                *extra_options,
+                            ]
+                        )
+                load_splits.assert_not_called()
 
 
 if __name__ == "__main__":

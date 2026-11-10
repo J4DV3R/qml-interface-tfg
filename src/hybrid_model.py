@@ -7,6 +7,7 @@ import torch
 from torch import nn
 
 if __package__:
+    from .circuit_execution import CircuitExecutor
     from .data_encoding import encoding_scale
     from .execution import ExecutionConfig
     from .qcnn_engine import (
@@ -15,6 +16,7 @@ if __package__:
         simulate_qcnn as _engine_simulate_qcnn,
     )
 else:
+    from circuit_execution import CircuitExecutor
     from data_encoding import encoding_scale
     from execution import ExecutionConfig
     from qcnn_engine import (
@@ -33,6 +35,7 @@ def _simulate_qcnn(
     shifted_weight: tuple[int, int, int, float] | None = None,
     encoding: str = "angle",
     execution_config: ExecutionConfig = ExecutionConfig(),
+    executor: CircuitExecutor | None = None,
 ) -> np.ndarray:
     """Simulate one QCNN sample through the pure Qibo/NumPy engine."""
     return _engine_simulate_qcnn(
@@ -44,16 +47,27 @@ def _simulate_qcnn(
         shifted_weight=shifted_weight,
         encoding=encoding,
         execution_config=execution_config,
+        executor=executor,
     )
 
 
 class _ParameterShiftQCNN(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, features, weights, n_qubits, n_outputs, execution_config, encoding):
+    def forward(
+        ctx,
+        features,
+        weights,
+        n_qubits,
+        n_outputs,
+        execution_config,
+        encoding,
+        executor,
+    ):
         ctx.n_qubits = n_qubits
         ctx.n_outputs = n_outputs
         ctx.execution_config = execution_config
         ctx.encoding = encoding
+        ctx.executor = executor
         ctx.save_for_backward(features, weights)
 
         feature_values = features.detach().numpy()
@@ -67,6 +81,7 @@ class _ParameterShiftQCNN(torch.autograd.Function):
                     n_outputs,
                     execution_config=execution_config,
                     encoding=encoding,
+                    executor=executor,
                 )
                 for sample in feature_values
             ]
@@ -95,6 +110,7 @@ class _ParameterShiftQCNN(torch.autograd.Function):
                         shifted_feature=(feature_index, shift),
                         execution_config=ctx.execution_config,
                         encoding=ctx.encoding,
+                        executor=ctx.executor,
                     )
                     negative = _simulate_qcnn(
                         sample,
@@ -104,6 +120,7 @@ class _ParameterShiftQCNN(torch.autograd.Function):
                         shifted_feature=(feature_index, -shift),
                         execution_config=ctx.execution_config,
                         encoding=ctx.encoding,
+                        executor=ctx.executor,
                     )
                     derivative = (
                         0.5
@@ -132,6 +149,7 @@ class _ParameterShiftQCNN(torch.autograd.Function):
                                 ),
                                 execution_config=ctx.execution_config,
                                 encoding=ctx.encoding,
+                                executor=ctx.executor,
                             )
                             negative = _simulate_qcnn(
                                 sample,
@@ -146,6 +164,7 @@ class _ParameterShiftQCNN(torch.autograd.Function):
                                 ),
                                 execution_config=ctx.execution_config,
                                 encoding=ctx.encoding,
+                                executor=ctx.executor,
                             )
                             derivative = 0.5 * (positive - negative)
                             weight_gradient[layer_index, weight_index] += np.dot(
@@ -172,6 +191,7 @@ class _ParameterShiftQCNN(torch.autograd.Function):
             None,
             None,
             None,
+            None,
         )
 
 
@@ -190,6 +210,7 @@ class QCNNModel(nn.Module):
         n_outputs: int = 1,
         execution_config: ExecutionConfig | None = None,
         encoding: str = "angle",
+        executor: CircuitExecutor | None = None,
     ):
         super().__init__()
         if not isinstance(n_qubits, int) or n_qubits < 2:
@@ -210,7 +231,10 @@ class QCNNModel(nn.Module):
         self.execution_config = execution_config or ExecutionConfig()
         if encoding not in ("angle", "phase"):
             raise ValueError("encoding must be 'angle' or 'phase'.")
+        if executor is not None and not isinstance(executor, CircuitExecutor):
+            raise TypeError("executor must implement CircuitExecutor or be None.")
         self.encoding = encoding
+        self.executor = executor
         self._seed_initialized = False
         n_layers = int(math.log2(layer_ratio))
         self.weights = nn.Parameter(torch.empty(n_layers, 4))
@@ -243,6 +267,7 @@ class QCNNModel(nn.Module):
             self.n_outputs,
             self.execution_config,
             self.encoding,
+            self.executor,
         )
 
 

@@ -22,11 +22,21 @@ from qibo.models import Circuit
 from qibo.noise import DepolarizingError, NoiseModel
 
 if __package__:
+    from .circuit_execution import (
+        CircuitExecutor,
+        QiboSimulatorExecutor,
+        validate_counts,
+    )
     from .data_encoding import add_angle_encoding, add_phase_encoding
     from .execution import ExecutionConfig
     from .pooling import add_pooling_layer
     from .qcnn_circuit import add_conv_layer
 else:
+    from circuit_execution import (
+        CircuitExecutor,
+        QiboSimulatorExecutor,
+        validate_counts,
+    )
     from data_encoding import add_angle_encoding, add_phase_encoding
     from execution import ExecutionConfig
     from pooling import add_pooling_layer
@@ -47,6 +57,7 @@ class QCNNConfig:
     n_outputs: int = 1
     encoding: str = "angle"
     execution: ExecutionConfig = field(default_factory=ExecutionConfig)
+    executor: CircuitExecutor | None = field(default=None, compare=False, repr=False)
 
     def __post_init__(self):
         if not isinstance(self.n_qubits, int) or self.n_qubits < 2:
@@ -70,6 +81,8 @@ class QCNNConfig:
             raise ValueError("encoding must be 'angle' or 'phase'.")
         if not isinstance(self.execution, ExecutionConfig):
             raise TypeError("execution must be an ExecutionConfig instance.")
+        if self.executor is not None and not isinstance(self.executor, CircuitExecutor):
+            raise TypeError("executor must implement CircuitExecutor or be None.")
 
     @property
     def n_layers(self) -> int:
@@ -171,11 +184,17 @@ def _execute_expectations(
     circuit: Circuit,
     active_qubits: list[int],
     config: QCNNConfig,
+    execution_seed: int | None = None,
 ) -> np.ndarray:
     execution = config.execution
     if execution.shots is None:
         if execution.noisy:
             raise ValueError("noise requires a positive shots value.")
+        if config.executor is not None:
+            raise ValueError(
+                "an injected measured-circuit executor requires positive shots; "
+                "shots=None is reserved for exact local simulation."
+            )
         state = circuit.execute().state()
         return np.asarray(
             [
@@ -186,12 +205,32 @@ def _execute_expectations(
         )
 
     circuit.add(gates.M(*active_qubits))
-    if execution.noisy:
-        circuit = depolarizing_noise_model(
-            execution.depolarizing_probability
-        ).apply(circuit)
-    result = circuit.execute(nshots=execution.shots)
-    frequencies = result.frequencies(binary=True)
+    executor = config.executor
+    if executor is None:
+        noise_transform = None
+        if execution.noisy:
+            noise_model = depolarizing_noise_model(
+                execution.depolarizing_probability
+            )
+            noise_transform = noise_model.apply
+        executor = QiboSimulatorExecutor(noise_transform=noise_transform)
+    elif execution.noisy:
+        raise ValueError(
+            "depolarizing_probability is the built-in Qibo simulator model; "
+            "configure noise through the injected executor instead."
+        )
+
+    executor.capabilities.validate_request(config.n_qubits, execution.shots)
+
+    frequencies = validate_counts(
+        executor.execute_counts(
+            circuit,
+            shots=execution.shots,
+            seed=(execution.seed if execution_seed is None else execution_seed),
+        ),
+        n_bits=len(active_qubits),
+        shots=execution.shots,
+    )
     expectations = np.zeros(len(active_qubits), dtype=float)
     for bitstring, count in frequencies.items():
         for index, bit in enumerate(bitstring):
@@ -205,6 +244,7 @@ def _simulate_with_config(
     config: QCNNConfig,
     shifted_feature: tuple[int, float] | None = None,
     shifted_weight: tuple[int, int, int, float] | None = None,
+    execution_seed: int | None = None,
 ) -> np.ndarray:
     circuit = build_qcnn_circuit(
         features,
@@ -214,7 +254,19 @@ def _simulate_with_config(
         shifted_weight=shifted_weight,
     )
     active_qubits = _final_active_qubits(config.n_qubits, config.n_outputs)
-    return _execute_expectations(circuit, active_qubits, config)
+    return _execute_expectations(
+        circuit, active_qubits, config, execution_seed=execution_seed
+    )
+
+
+def _derive_circuit_seed(seed: int | None, *coordinates: int) -> int | None:
+    """Derive independent deterministic streams for circuits in one call."""
+    if seed is None:
+        return None
+    entropy = [int(seed) % (1 << 32), *(int(value) for value in coordinates)]
+    return int(
+        np.random.SeedSequence(entropy).generate_state(1, dtype=np.uint32)[0]
+    )
 
 
 def simulate_qcnn(
@@ -226,6 +278,7 @@ def simulate_qcnn(
     shifted_weight: tuple[int, int, int, float] | None = None,
     encoding: str = "angle",
     execution_config: ExecutionConfig = ExecutionConfig(),
+    executor: CircuitExecutor | None = None,
 ) -> np.ndarray:
     """Simulate one sample with the legacy-compatible parameter order.
 
@@ -238,6 +291,7 @@ def simulate_qcnn(
         n_outputs=n_outputs,
         encoding=encoding,
         execution=execution_config,
+        executor=executor,
     )
     return _simulate_with_config(
         features,
@@ -299,8 +353,15 @@ def _predict_validated(
         np.random.seed(config.execution.seed)
     return np.stack(
         [
-            _simulate_with_config(sample, weight_values, config)
-            for sample in feature_values
+            _simulate_with_config(
+                sample,
+                weight_values,
+                config,
+                execution_seed=_derive_circuit_seed(
+                    config.execution.seed, 0, sample_index
+                ),
+            )
+            for sample_index, sample in enumerate(feature_values)
         ]
     )
 
@@ -378,6 +439,15 @@ def parameter_shift_gradient(
                             weight_index,
                             shift,
                         ),
+                        execution_seed=_derive_circuit_seed(
+                            config.execution.seed,
+                            1,
+                            batch_index,
+                            layer_index,
+                            pair_index,
+                            weight_index,
+                            0,
+                        ),
                     )
                     negative = _simulate_with_config(
                         sample,
@@ -388,6 +458,15 @@ def parameter_shift_gradient(
                             pair_index,
                             weight_index,
                             -shift,
+                        ),
+                        execution_seed=_derive_circuit_seed(
+                            config.execution.seed,
+                            1,
+                            batch_index,
+                            layer_index,
+                            pair_index,
+                            weight_index,
+                            1,
                         ),
                     )
                     derivative = 0.5 * (positive - negative)

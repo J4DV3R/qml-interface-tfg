@@ -163,22 +163,6 @@ def load_binary_iris_splits(
     )
 
 
-def load_binary_iris() -> tuple[torch.Tensor, torch.Tensor]:
-    """Backward-compatible loader returning all binary Iris samples.
-
-    Use ``load_binary_iris_splits`` for experiments and model evaluation.
-    """
-    splits = load_binary_iris_splits()
-    return (
-        torch.cat(
-            [splits.train_features, splits.validation_features, splits.test_features]
-        ),
-        torch.cat(
-            [splits.train_targets, splits.validation_targets, splits.test_targets]
-        ),
-    )
-
-
 def load_binary_breast_cancer_splits(
     seed: int = 42,
     n_components: int = 4,

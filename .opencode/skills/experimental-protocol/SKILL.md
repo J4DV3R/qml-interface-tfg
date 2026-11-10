@@ -57,18 +57,42 @@ qml_env\Scripts\python.exe -m experiments.run_final_qcnn `
   --epochs 5 --seeds 1 2 --shots 50 --noise 0.01 `
   --output results/reproductions/legacy/breast-cancer-qcnn-noisy.json
 
-# Ruta M1-M4: no ejecutar sin aprobación explícita; no se ha evaluado aún
+# Runner M1-M5 (solo simulador Qibo; no constituye ejecución QPU)
+# Para finite-shots con ruido cero, añadir --measured-execution.
+# No ejecutar perfiles largos sin congelar coste y obtener autorización.
+# ADVERTENCIA: con --qgd-bits 5 --learning-rate 0.1 el delta entero es 0
+# para los 32 códigos de gradiente; el update solo cuantiza. No usar como
+# evidencia de aprendizaje. La revisión de b/lr está pendiente del tutor.
 qml_env\Scripts\python.exe -m experiments.run_quantum_training `
-  --dataset iris --max-steps 1 --shots 100 --noise 0.0 `
+  --dataset iris --max-steps 1 --shots 100 --measured-execution --noise 0.0 `
   --learning-rate 0.1 --qgd-bits 5 --encoding angle `
   --dataset-seed 42 --initialization-seed 19 --execution-seed 101 `
   --output results/quantum-training/iris-angle-1step-shots100.json
 ```
 
-No ejecutes el runner QGD, la batería completa ni amplíes shots, épocas o
-semillas sin autorización. La ruta QGD conserva la actualización modular y
-saturación de gradientes; no equivale al clipping propuesto y el tutor aún no la
-ha aceptado.
+La configuración `b=5/lr=0.1` es un no-op; los screens S0/G0/U0 y los perfiles
+M5 la usan. La suite completa actual es de 92 pruebas (10 de noviembre de 2026;
+sección 29 del log). En Qibo 0.1.11 el canal depolarizante se muestrea una vez
+por ejecución del circuito, no por shot; los shots no promedian ruido.
+`requirements.txt` está aprobado para el commit de cierre del 10 de noviembre de
+2026; no lo modifiques de nuevo sin nueva aprobación.
+
+El objetivo acordado con el tutor es preparar ejecución en hardware cuántico
+real y llevar el ajuste aritmético de pesos a circuitos cuanto sea posible. No
+está pendiente la dirección general; sí deben definirse el backend y la
+implementación concreta de actualización. M5 implementa actualización aritmética
+reversible medida mediante counts, pero el adaptador disponible es solo el
+simulador Qibo. No hay backend de proveedor, transpilación ni validación de
+recursos del dispositivo. La regla modular difiere del clipping propuesto, por
+lo que no se debe asumir que esa regla concreta está aprobada.
+
+Para la nueva arquitectura, sigue las etapas y condiciones propuestas en la
+sección «Protocolo propuesto para orientar la ruta QGD a QPU» de
+`docs/experimental-protocol.md`. No ejecutes una matriz extensa: primero prueba
+un peso, escala a todos, valida circuitos y mide coste. Antes de cualquier
+ejecución larga o costosa, congela configuración y solicita aprobación
+específica. Distingue claramente estimaciones de circuitos, trabajos enviados y
+shots.
 
 ## Esquemas JSON observados
 
@@ -77,7 +101,7 @@ Los resultados históricos usan dos familias:
 1. Barridos: claves `sweep`, `runs`, `summaries`, `baseline`.
 2. Batería focalizada: claves `dataset`, `model`, `training`, `results`,
    `baseline`.
-3. Runner QGD M1-M4 (solo cuando exista JSON): `dataset`, `seeds`, `model`,
+3. Runner QGD M1-M5: `dataset`, `provenance`, `seeds`, `model`,
    `initial_weights`, `qgd`, `training`, `best_weights`, `final_weights`, `test`,
    `circuit_executions_estimate` y `classical_quantum_boundary`.
 
@@ -91,11 +115,15 @@ Campos que deben conservarse o verificarse:
 - Entrenamiento: optimizador, learning rate, épocas o presupuesto.
 - Resultados individuales: historial de pérdida, pérdida de validación,
   métricas de validación y test, tiempo.
-- Ruta QGD: distingue gradiente inicial exacto, gradientes posteriores con shots,
-  actualización state-vector exacta sin medición/shots, y contadores estructurales
-  de ejecuciones (estimaciones, no instrumentación).
+- Ruta QGD: distingue gradiente inicial exacto o medido, modo medido/no medido
+  del update, shots, y contadores estructurales de ejecuciones (estimaciones, no
+  instrumentación).
 - Baseline: mismas particiones y transformaciones.
 - Revisión del código y comando de ejecución.
+
+El CLI registra en `provenance` el `HEAD`, si el árbol estaba sucio, las rutas
+modificadas y el `command_argv`. Un `HEAD` con árbol sucio no identifica por sí
+solo todos los cambios ejecutados; conserva y consulta también ese estado.
 
 ## Reglas de lectura
 

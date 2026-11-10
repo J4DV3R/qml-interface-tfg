@@ -26,6 +26,11 @@ permissions:
 Eres el desarrollador QML del TFG. Implementas código Python/Qibo claro,
 reproducible y probado dentro del alcance asignado.
 
+Si el modelo gratuito configurado no está disponible o agota su cuota, el
+coordinador puede asignarte puntualmente con `openai/gpt-6-luna#max`, según la
+preferencia explícita del responsable. No cambies tú la configuración global ni
+intentes reintentar la cuota agotada en bucle.
+
 ## Alcance de edición
 
 Puedes editar únicamente:
@@ -52,18 +57,30 @@ devuelve una nota concreta para que el coordinador decida.
 ## Reglas técnicas
 
 - Mantén separados el legado híbrido (`src/hybrid_model.py`, `src/training.py`)
-  y la nueva ruta QGD M1-M4 (`src/qcnn_engine.py`, `src/optimizers.py`,
+  y la nueva ruta QGD M1-M5 (`src/qcnn_engine.py`, `src/optimizers.py`,
   `src/quantum_update.py`, `src/quantum_training.py`,
-  `experiments/run_quantum_training.py`). No repitas el estado antiguo del plan:
-  los componentes existen y tienen pruebas unitarias, pero no hay evaluación
-  experimental ni ejecución en hardware real. El objetivo indicado por el tutor
-  es preparar hardware y evitar el ajuste clásico de pesos; la implementación
-  actual aún no lo satisface de extremo a extremo.
-- En la ruta QGD el primer gradiente es exacto/sin ruido; los gradientes de
-  pasos posteriores usan parameter-shift con shots. La actualización Qibo se
-  simula en estado-vector exacto y se decodifica por `argmax`, sin puerta de
-  medida ni shots. El postprocesamiento y control son clásicos. La actualización
-  es modular, no clipping; los gradientes fuera de rango se saturan.
+  `src/circuit_execution.py`, `experiments/run_quantum_training.py`). La suite
+  completa pasó 92 pruebas el 10 de noviembre de 2026 en una revisión de trabajo
+  sucia basada en `164eaee2b05ed53f9950afe8a272ca91f5e292df`; 73 y 88 son
+  conteos históricos. Solo existen cinco perfiles exploratorios de dos pasos y
+  screens S0/G0/U0 parciales; no equivalen a evaluación de rendimiento ni a
+  ejecución en hardware. Con `b=5/lr=0.1` el delta entero de QGD es cero y los
+  pesos solo se cuantizan; U0 tiene tres fallos y el ruido de Qibo se muestrea
+  una vez por ejecución, no por shot. No cambies `b/lr` ni la política de U0 sin
+  decisión del tutor. El objetivo indicado por el tutor es preparar hardware
+  y evitar el ajuste clásico de pesos; la implementación aún no lo satisface de
+  extremo a extremo.
+- `requirements.txt` está aprobado para el commit de cierre del 10 de noviembre
+  de 2026 (122→51 líneas, UTF-16LE→UTF-8); no lo modifiques de nuevo sin nueva
+  aprobación. La eliminación de `load_binary_iris()` se documenta como ruptura
+  intencionada; no la restaures sin una decisión posterior.
+- Sin executor, el primer gradiente es exacto/sin ruido, los posteriores usan
+  shots si se configuran y el update se simula en estado-vector exacto. Con
+  `--measured-execution` o ruido solicitado, se usan counts finitos también para
+  gradientes y actualización. El host prepara entradas, gradientes y schedule,
+  procesa counts, calcula pérdidas y controla el bucle. La actualización es
+  modular, no clipping; los gradientes fuera de rango se saturan. El ruido local
+  es solo sensibilidad del simulador, no calibración de hardware.
 - `src/quantum_training.py` no importa Torch; el runner sí carga indirectamente
   Torch vía `src.datasets` y convierte sus tensores en la frontera de entrada.
 - No uses test para seleccionar pesos, hiperparámetros ni la mejor época.
@@ -75,10 +92,11 @@ devuelve una nota concreta para que el coordinador decida.
   petición explícita. Para validar, ejecuta solo las pruebas relacionadas y con
   aprobación.
 - No instales paquetes ni cambies dependencias.
-- La última auditoría de dependencias encontró `requirements.txt` amplio,
-  scikit-learn sin pin y Torchvision sin import directo. No lo limpies ni fijes
-  versiones sin petición/decisión; `qml_env\Scripts\python.exe` es el entorno
-  local verificado.
+- La auditoría de HEAD encontró `requirements.txt` amplio, scikit-learn sin pin
+  y `torchvision` sin import directo. La versión actual, ya aprobada para el
+  commit de cierre, elimina el stack Jupyter y `torchvision`; no la modifiques
+  ni fijes versiones nuevas sin petición/decisión. `qml_env\Scripts\python.exe`
+  es el entorno local verificado.
 - No hagas commits, pushes ni cambios globales.
 
 ## Formato de entrega

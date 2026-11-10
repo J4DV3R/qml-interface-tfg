@@ -1,0 +1,352 @@
+{
+  "dataset": {
+    "name": "iris",
+    "seed": 42,
+    "split_fractions": {
+      "train": 0.7,
+      "validation": 0.15,
+      "test": 0.15
+    },
+    "preprocessing": "fit on train only; loader returns normalized features"
+  },
+  "provenance": {
+    "git_revision": "164eaee2b05ed53f9950afe8a272ca91f5e292df",
+    "working_tree_dirty": true,
+    "working_tree_status": [
+      " M .opencode/agents/coordinator.md",
+      " M .opencode/agents/qml-developer.md",
+      " M .opencode/skills/experimental-protocol/SKILL.md",
+      " M AGENTS.md",
+      " M README.md",
+      " M docs/experimental-protocol.md",
+      " M experiments/run_quantum_training.py",
+      " M src/qcnn_engine.py",
+      " M src/quantum_training.py",
+      " M src/quantum_update.py",
+      " M tests/test_quantum_training.py",
+      " M tests/test_quantum_update.py",
+      "?? results/quantum-training/m5-profile-iris-angle-measured-shots100-noise0-2steps.json",
+      "?? results/quantum-training/m5-profile-iris-angle-measured-shots100-noise0001-2steps.json",
+      "?? src/circuit_execution.py",
+      "?? tests/test_circuit_execution.py"
+    ],
+    "git_metadata_error": null,
+    "command_argv": [
+      "C:\\Users\\jadve\\Documents\\UPO\\qml-interface-tfg\\qml_env\\Scripts\\python.exe",
+      "-m",
+      "experiments.run_quantum_training",
+      "--dataset",
+      "iris",
+      "--max-steps",
+      "2",
+      "--shots",
+      "100",
+      "--measured-execution",
+      "--noise",
+      "0.0",
+      "--encoding",
+      "phase",
+      "--dataset-seed",
+      "42",
+      "--initialization-seed",
+      "19",
+      "--execution-seed",
+      "101",
+      "--output",
+      "results/quantum-training/m5-profile-iris-phase-measured-shots100-noise0-2steps.json"
+    ]
+  },
+  "seeds": {
+    "dataset": 42,
+    "initialization": 19,
+    "execution": 101,
+    "execution_seed_policy": "NumPy SeedSequence([execution_seed, component_id, step]) yields a stable uint32 seed per gradient/evaluation component."
+  },
+  "model": {
+    "n_qubits": 4,
+    "n_outputs": 1,
+    "encoding": "phase",
+    "measured_execution": true,
+    "measured_execution_requested": true,
+    "executor_mode": "qibo_simulator_measured",
+    "depolarizing_probability": 0.0,
+    "execution_config_depolarizing_probability": 0.0,
+    "simulator_noise": {
+      "requested_probability": 0.0,
+      "model": "none",
+      "scope": "simulator-only sensitivity model; not calibrated or claimed to represent physical hardware noise",
+      "applied_to": []
+    }
+  },
+  "initial_weights": [
+    [
+      -0.03981060213536958,
+      0.21293467240835184,
+      -0.11306500605085895,
+      -0.21997569793873667
+    ],
+    [
+      -0.09472827084344404,
+      0.1090926289360385,
+      0.14048279088409155,
+      0.019349918039796465
+    ]
+  ],
+  "qgd": {
+    "n_bits": 5,
+    "weight_min": -3.141592653589793,
+    "weight_max": 3.141592653589793,
+    "gradient_min": -1.0,
+    "gradient_max": 1.0,
+    "learning_rate": 0.1,
+    "finite_register_semantics": "weights are updated on a cyclic grid modulo n_levels; gradients outside [gradient_min, gradient_max] saturate at the boundary. This is not gradient clipping."
+  },
+  "training": {
+    "max_steps": 2,
+    "shots": 100,
+    "execution_seed": 101,
+    "patience": null,
+    "initial_gradient_mode": "parameter_shift_shots",
+    "initial_gradient_shots": 100,
+    "learning_rate": 0.1,
+    "steps_completed": 2,
+    "best_step": 1,
+    "best_validation_loss": 0.9798133333333332,
+    "elapsed_seconds": 5.938102800002525,
+    "history": [
+      {
+        "step": 1,
+        "train_loss": 0.9540457142857142,
+        "train_metrics": {
+          "accuracy": 0.6285714285714286,
+          "precision": 0.6216216216216216,
+          "recall": 0.6571428571428571,
+          "f1": 0.6388888888888888
+        },
+        "validation_loss": 0.9798133333333332,
+        "validation_metrics": {
+          "accuracy": 0.5333333333333333,
+          "precision": 0.5714285714285714,
+          "recall": 0.5,
+          "f1": 0.5333333333333333
+        },
+        "gradient_mode": "parameter_shift_shots",
+        "gradient_execution_seed": 4137311287,
+        "gradient_shots": 100,
+        "update_execution_seed": 741750953,
+        "update_shots_per_weight": 100,
+        "update_mode_probabilities": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "update_minimum_mode_probability": 0.5,
+        "train_evaluation_execution_seed": 644686299,
+        "validation_evaluation_execution_seed": 3668140810
+      },
+      {
+        "step": 2,
+        "train_loss": 0.9878114285714286,
+        "train_metrics": {
+          "accuracy": 0.5,
+          "precision": 0.5,
+          "recall": 0.5714285714285714,
+          "f1": 0.5333333333333333
+        },
+        "validation_loss": 0.9901066666666668,
+        "validation_metrics": {
+          "accuracy": 0.6666666666666666,
+          "precision": 0.6666666666666666,
+          "recall": 0.75,
+          "f1": 0.7058823529411765
+        },
+        "gradient_mode": "parameter_shift_shots",
+        "gradient_execution_seed": 501399276,
+        "gradient_shots": 100,
+        "update_execution_seed": 301873780,
+        "update_shots_per_weight": 100,
+        "update_mode_probabilities": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "update_minimum_mode_probability": 0.5,
+        "train_evaluation_execution_seed": 1845835211,
+        "validation_evaluation_execution_seed": 487677899
+      }
+    ]
+  },
+  "best_weights": [
+    [
+      -0.10134169850289698,
+      0.30402509550869006,
+      -0.10134169850289698,
+      -0.3040250955086896
+    ],
+    [
+      -0.10134169850289698,
+      0.10134169850289654,
+      0.10134169850289654,
+      0.10134169850289654
+    ]
+  ],
+  "final_weights": [
+    [
+      -0.10134169850289698,
+      0.30402509550869006,
+      -0.10134169850289698,
+      -0.3040250955086896
+    ],
+    [
+      -0.10134169850289698,
+      0.10134169850289654,
+      0.10134169850289654,
+      0.10134169850289654
+    ]
+  ],
+  "test": {
+    "evaluated_once_after_checkpoint_selection": true,
+    "checkpoint_step": 1,
+    "execution_seed": 2599094344,
+    "shots": 100,
+    "samples": 15,
+    "mse_loss": 1.04232,
+    "metrics": {
+      "accuracy": 0.4,
+      "precision": 0.3333333333333333,
+      "recall": 0.2857142857142857,
+      "f1": 0.30769230769230765,
+      "support": 15.0
+    }
+  },
+  "circuit_executions_estimate": {
+    "accounting": "Estimated Qibo circuit executions; one circuit per sample for a base/prediction pass, two per scalar parameter occurrence and sample for parameter shift, and one per scalar weight for QGD. This is structural accounting, not runtime instrumentation.",
+    "logical_weight_occurrences_per_sample": 16,
+    "shifted_circuits_per_gradient": 2240,
+    "train_samples": 70,
+    "validation_samples": 15,
+    "steps_completed": 2,
+    "qcnn_qubits_per_circuit": 4,
+    "declared_resource_profile": {
+      "declared": {
+        "max_qubits": null,
+        "max_shots": null,
+        "basis_gates": null,
+        "connectivity": null,
+        "metadata": {
+          "adapter": "qibo-local-simulator",
+          "noise_model": "none",
+          "noise_probability": 0.0,
+          "execution_mode": "measured-counts"
+        }
+      },
+      "validation": {
+        "performed": false,
+        "backend": null
+      },
+      "transpilation": {
+        "performed": false,
+        "backend": null
+      }
+    },
+    "components": {
+      "initial_gradient": {
+        "logical_gradient_evaluations": 1,
+        "execution_mode": "finite_shots",
+        "base_prediction_logical_passes": 1,
+        "base_prediction_circuit_executions_estimate": 70,
+        "parameter_shift_circuit_executions_estimate": 2240,
+        "shots_per_circuit": 100,
+        "circuit_executions_estimate": 2310
+      },
+      "subsequent_gradients": {
+        "logical_gradient_evaluations": 1,
+        "execution_mode": "finite_shots",
+        "base_prediction_logical_passes": 1,
+        "base_prediction_circuit_executions_estimate": 70,
+        "parameter_shift_circuit_executions_estimate": 2240,
+        "shots_per_circuit": 100,
+        "circuit_executions_estimate": 2310
+      },
+      "qgd_weight_updates": {
+        "logical_update_steps": 2,
+        "circuits_per_step": 8,
+        "shots_per_circuit": 100,
+        "circuit_executions_estimate": 16,
+        "qubits_per_circuit": 10,
+        "shots_total_estimate": 1600,
+        "circuit_resources": {
+          "resource_estimate_scope": "Untranspiled Qibo logical instructions; serial depth upper bound. Excludes backend routing/decomposition, calibration, queueing, and provider-specific overhead.",
+          "qubits_per_weight_circuit": 10,
+          "shots_per_weight_circuit": 100,
+          "weight_circuits": 8,
+          "total_shots_estimate": 800,
+          "arithmetic_gate_count_estimate": 160,
+          "gate_count_per_circuit_upper_bound": 171,
+          "serialized_depth_upper_bound_estimate": 171,
+          "resource_profile": {
+            "declared": {
+              "max_qubits": null,
+              "max_shots": null,
+              "basis_gates": null,
+              "connectivity": null,
+              "metadata": {
+                "adapter": "qibo-local-simulator",
+                "noise_model": "none",
+                "noise_probability": 0.0,
+                "execution_mode": "measured-counts"
+              }
+            },
+            "validation": {
+              "performed": false,
+              "backend": null
+            },
+            "transpilation": {
+              "performed": false,
+              "backend": null
+            }
+          }
+        }
+      },
+      "post_update_train_evaluation": {
+        "logical_batch_evaluations": 2,
+        "samples_per_batch": 70,
+        "shots_per_circuit": 100,
+        "circuit_executions_estimate": 140
+      },
+      "validation_evaluation": {
+        "logical_batch_evaluations": 2,
+        "samples_per_batch": 15,
+        "shots_per_circuit": 100,
+        "circuit_executions_estimate": 30
+      }
+    },
+    "total_training_circuit_executions_estimate": 4806,
+    "total_weight_update_shots_estimate": 1600,
+    "final_test_evaluation": {
+      "logical_batch_evaluations": 1,
+      "samples_per_batch": 15,
+      "shots_per_circuit": 100,
+      "execution_seed": 2599094344,
+      "circuit_executions_estimate": 15
+    },
+    "total_including_final_test_circuit_executions_estimate": 4821
+  },
+  "classical_quantum_boundary": {
+    "initial_gradient": "host computes parameter-shift differences from measured executor circuits using finite shots; this is classical orchestration and postprocessing, not a quantum gradient register.",
+    "later_gradients": "Qibo circuits use configured finite shots, or exact simulation when shots is null; the host reads expectations and assembles parameter-shift gradients.",
+    "weight_update": "one measured arithmetic Qibo circuit per scalar weight; host encodes the gradient register and decodes the unique modal bitstring from counts. The update circuit applies the modular subtraction; update shots are recorded in the resource estimate. No state-vector access is used by this path.",
+    "control_and_selection": "loss calculation, validation checkpoint selection, stopping, and test metric postprocessing are classical.",
+    "hardware_status": "The CLI uses the local Qibo simulator. No vendor adapter, transpilation, connectivity validation, or hardware execution is selected or claimed."
+  }
+}

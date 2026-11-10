@@ -685,3 +685,356 @@ Por tanto, deben distinguirse:
 No llamar a la implementación actual «hardware-ready» ni afirmar que satisface
 el objetivo solo porque no importa PyTorch o porque la actualización se expresa
 como un circuito de simulación.
+
+## 25. M5: executor medido y perfiles exploratorios
+
+**Fecha:** 7 de noviembre de 2026.
+
+**Implementado:** M5 añade `src/circuit_execution.py`, con el contrato
+`CircuitExecutor`, perfiles declarativos de recursos y un adaptador local de
+simulación Qibo que devuelve counts. `src/quantum_update.py` ejecuta la
+actualización aritmética reversible mediante circuitos controlled-X; se cubren
+la actualización de un peso y la vectorial. Con executor, los counts se
+decodifican en el host; la preparación de entradas y registros, la codificación
+del gradiente, el cálculo y acumulación de derivadas, pérdidas, selección por
+validation y control del bucle siguen siendo clásicos. La interfaz declara
+límites de recursos, pero no transpila ni valida conectividad/base de puertas
+contra un dispositivo.
+
+El modo `--measured-execution` activa shots finitos incluso con ruido cero, para
+que el gradiente inicial y las predicciones se midan. Un ruido solicitado mayor
+que cero también activa el executor. Sin executor y con `shots=None`, los
+gradientes y las evaluaciones de la QCNN son exactos y sin ruido, pero cada
+actualización usa el circuito medido en el simulador Qibo con un shot
+determinista. Con executor se requieren shots finitos. El ruido implementado es
+un canal depolarizante local de sensibilidad, aplicado en la simulación a
+qubits tocados por puertas; `p=0.001` no representa una calibración física.
+
+**Validación — Validado unitariamente:** en el árbol de trabajo sucio basado en
+`164eaee2b05ed53f9950afe8a272ca91f5e292df`, el 7 de noviembre de 2026 pasó la
+suite completa con 73 pruebas (conteo histórico; la validación vigente es la
+sección 29):
+
+```powershell
+qml_env\Scripts\python.exe -m unittest discover -s tests -v
+qml_env\Scripts\python.exe -m compileall src experiments tests
+git diff --check
+```
+
+`compileall` terminó correctamente y `git diff --check` no reportó errores de
+espaciado; Git mostró únicamente avisos de conversión LF/CRLF. La suite valida
+componentes y contratos de simulación, no compatibilidad con una QPU.
+
+**Perfiles — Ejecutados para caracterizar flujo y coste, no para evaluar
+rendimiento:** se generaron los siguientes JSON con partición completa, 100
+shots, dos pasos, semillas dataset/inicialización/ejecución `42/19/101` y cuatro
+qubits. Las duraciones son las registradas como `training.elapsed_seconds`; los
+conteos son estimaciones lógicas estructurales.
+
+| Perfil | Tiempo de entrenamiento | Ejecuciones de entrenamiento estimadas | JSON |
+|---|---:|---:|---|
+| Iris angular, `p=0` | 5,68 s | 4.806 | [`m5-profile-iris-angle-measured-shots100-noise0-2steps.json`](../results/quantum-training/m5-profile-iris-angle-measured-shots100-noise0-2steps.json) |
+| Iris angular, `p=0.001` | 46,84 s | 4.806 | [`m5-profile-iris-angle-measured-shots100-noise0001-2steps.json`](../results/quantum-training/m5-profile-iris-angle-measured-shots100-noise0001-2steps.json) |
+| Iris fase, `p=0` | 5,94 s | 4.806 | [`m5-profile-iris-phase-measured-shots100-noise0-2steps.json`](../results/quantum-training/m5-profile-iris-phase-measured-shots100-noise0-2steps.json) |
+| Iris fase, `p=0.001` | 51,19 s | 4.806 | [`m5-profile-iris-phase-measured-shots100-noise0001-2steps.json`](../results/quantum-training/m5-profile-iris-phase-measured-shots100-noise0001-2steps.json) |
+| Breast Cancer angular, `p=0` | 31,49 s | 27.250 | [`m5-profile-breast-cancer-angle-measured-shots100-noise0-2steps.json`](../results/quantum-training/m5-profile-breast-cancer-angle-measured-shots100-noise0-2steps.json) |
+
+Cada JSON conserva `provenance.command_argv`, revisión y estado del árbol. La
+revisión Git registrada es `164eaee2b05ed53f9950afe8a272ca91f5e292df`, con
+cambios M5 sin commit. No se generó un log independiente. Los JSON incluyen
+test una vez tras seleccionar por validation (15 casos Iris y 86 Breast Cancer);
+las métricas de test de estos perfiles no se interpretan como comparación de
+rendimiento: hay una inicialización y solo dos pasos por condición.
+
+**Estimación para decidir coste — no ejecutada:** una extrapolación lineal desde
+los tiempos de dos pasos da las siguientes proyecciones para 30/60/100 pasos:
+
+| Condición perfilada | 30 pasos | 60 pasos | 100 pasos |
+|---|---:|---:|---:|
+| Iris angular, `p=0` | 1,4 min | 2,8 min | 4,7 min |
+| Iris fase, `p=0` | 1,5 min | 3,0 min | 4,9 min |
+| Iris angular, `p=0.001` | 11,7 min | 23,4 min | 39,0 min |
+| Iris fase, `p=0.001` | 12,8 min | 25,6 min | 42,7 min |
+| Breast Cancer angular, `p=0` | 7,9 min | 15,7 min | 26,2 min |
+
+Para los cinco perfiles disponibles, 30/60/100 pasos y dos o tres semillas
+sumarían aproximadamente 7,5–11,2 horas de entrenamiento bajo la hipótesis
+lineal; la cifra excluye las condiciones de Breast Cancer no perfiladas y
+la evaluación final de test y overhead de inicio. No es una cotización fiable ni
+constituye autorización para ejecutar la matriz.
+
+**Límites y siguientes pasos:** no hay backend/proveedor, transpilación,
+validación de conectividad, ejecución QPU ni modelo calibrado de ruido. Las
+estimaciones de circuitos no son instrumentación de jobs o shots. Los perfiles
+solo permiten comparar coste operativo en estas condiciones y no demuestran
+convergencia ni generalización. Antes de ampliar el protocolo, acordar el
+alcance y el tiempo disponible; después perfilar las condiciones de Breast
+Cancer restantes y decidir si se mantienen 30/60/100 pasos y 2–3 semillas.
+
+## 26. Validación de componentes previa a la comparación
+
+**Estado — Validado unitariamente, no evaluado experimentalmente:** en el árbol
+sucio basado en HEAD `164eaee2b05ed53f9950afe8a272ca91f5e292df` se registraron
+estas ejecuciones:
+
+```text
+qml_env\Scripts\python.exe -m unittest tests.test_quantum_update -v
+Ran 17 tests in 1.722s — OK
+
+qml_env\Scripts\python.exe -m unittest tests.test_quantum_update tests.test_quantum_training tests.test_circuit_execution -v
+Ran 38 tests in 12.652s — OK
+
+qml_env\Scripts\python.exe -m unittest tests.test_qcnn tests.test_quantum_engine -v
+Ran 31 tests in 5.468s — OK
+```
+
+La primera ejecución incluye cuatro pruebas nuevas con executor fake y counts
+controlados; la segunda corresponde al estado anterior a esas cuatro
+adiciones. La suite completa no se ejecutó y estas pruebas no constituyen un
+experimento. `git diff --check` pasó con solo avisos LF/CRLF. Los fake counts
+verifican política de ejecución y propagación de counts, no ruido estadístico ni
+comportamiento en QPU.
+
+El protocolo comparativo está propuesto al final de
+`docs/experimental-protocol.md`; no se ha ejecutado ni aprobado. El plan
+`docs/quantum-training-plan.md` conserva una referencia antigua que presenta
+Adam como solo histórico; la armonización documental sigue pendiente. No se
+registra aprobación del tutor.
+
+## 27. Prerrequisitos para la comparación emparejada QGD–Adam
+
+**Fecha:** 7 de noviembre de 2026.
+
+**Implementación:** se añadió `experiments/compare_qgd_adam.py` y se modificaron
+`src/circuit_execution.py`, `src/hybrid_model.py`, `src/qcnn_engine.py` y
+`src/quantum_training.py`, junto con pruebas para el runner, la ejecución, el
+entrenamiento, la actualización y el motor QCNN. El runner construye un vector
+inicial común: inicializa NumPy, cuantiza a `float32` y promueve a `float64`;
+verifica que Adam, cuyos parámetros son `float32`, pueda almacenarlo sin pérdida.
+QGD recibe valores numéricamente idénticos. Adam conserva el mismo optimizador
+entre épocas y ambos métodos seleccionan el checkpoint con menor MSE de
+validation. `--screening` evita acceder a test y fija exactamente dos
+épocas/pasos (por defecto, dos); la configuración normal usa 30 por defecto.
+`--qgd-only` omite Adam, exige `p_model=0` y solo permite estudiar `p_update`,
+por lo que no constituye una comparación entre métodos. El runner evita
+sobrescribir rutas existentes y resultados históricos.
+
+**Ruido:** el runner inyecta un executor común en los circuitos QCNN de Adam y
+QGD. `p_model` aplica canales depolarizantes locales de un qubit después de
+`RY`, `RZ` y `CNOT`, en cada qubit tocado y excluyendo mediciones; cubre también
+parameter-shift, predicción y evaluaciones de train, validation y test. Un
+`update_executor` independiente aplica `p_update` a los circuitos aritméticos
+QGD, cuya transformación cubre toda puerta no medición. Las coberturas son
+distintas y no deben interpretarse como un mismo canal físico. Con `p=0` se
+pueden usar counts con shots finitos sin canal. `shots=None` solo se admite con
+`p_model=p_update=0`; en ese caso, los gradientes y evaluaciones QCNN son
+exactos, mientras que el update QGD usa un shot determinista. Todo ello es
+sensibilidad en simulador local; no representa hardware ni QPU.
+
+**Validación — Validado unitariamente, no evaluado experimentalmente:** las
+comprobaciones dirigidas se ejecutaron sobre un árbol de trabajo sucio basado
+en HEAD `164eaee2b05ed53f9950afe8a272ca91f5e292df`. Se registraron 88 pruebas
+correctas en estos grupos (suma de grupos dirigidos, no una suite completa; la
+validación vigente es la sección 29):
+
+```text
+qml_env\Scripts\python.exe -m unittest discover -s tests -p test_compare_qgd_adam.py -v
+12 pruebas, OK (0.055 s)
+qml_env\Scripts\python.exe -m unittest discover -s tests -p test_circuit_execution.py -v
+9 pruebas, OK (0.067 s)
+qml_env\Scripts\python.exe -m unittest discover -s tests -p test_quantum_training.py -v
+19 pruebas, OK (5.367 s)
+qml_env\Scripts\python.exe -m unittest discover -s tests -p test_quantum_update.py -v
+17 pruebas, OK (2.095 s)
+qml_env\Scripts\python.exe -m unittest discover -s tests -p test_qcnn.py -v
+18 pruebas, OK (1.357 s)
+qml_env\Scripts\python.exe -m unittest discover -s tests -p test_quantum_engine.py -v
+13 pruebas, OK (3.027 s)
+```
+
+`git diff --check` pasó sin errores; Git emitió solo avisos LF/CRLF. El árbol
+estaba sucio y estas pruebas dirigidas/mockeadas comprueban contratos y
+comportamientos acotados: no equivalen a ejecutar el runner, un experimento ni
+la suite completa. En el momento de esa validación no se ejecutó
+`experiments/compare_qgd_adam.py`, no se generaron resultados comparativos y no
+se ejecutaron las matrices S0, G0, U0, S1, G1, G2 o U1; la ejecución posterior
+de S0, G0 y U0 se registra en la sección 28. Se retira el hallazgo anterior que
+indicaba que el test QGD no recibía `p_model`: el test reutiliza el executor con
+su transformación.
+
+**Estado metodológico y límites:** una revisión estática independiente considera
+aptos con condiciones S0, G0 y U0 como screenings de dos pasos, sin bloqueo
+técnico identificado. La semilla emparejada por identificador no garantiza
+realizaciones de ruido idénticas. La instrucción de preparar el código no
+constituye aprobación para confirmaciones. Tras los screenings debe revisarse
+el coste total y presentarse al responsable antes de G1, G2, S1 o U1. En el
+momento de redactar esta sección no se habían ejecutado screenings ni
+confirmaciones; la ejecución posterior de S0, G0 y U0 se registra en la sección
+28. La aceptación del tutor de la regla modular QGD sigue pendiente.
+
+## 28. Screens S0, G0 y U0: inventario, tiempos y bloqueos
+
+**Fecha de ejecución:** 8 de noviembre de 2026. **Registro:** 9 de noviembre
+de 2026.
+
+**Estado — Ejecutado parcialmente; no es evaluación de rendimiento:** este
+apartado actualiza el estado de la sección 27. Se ejecutaron los screenings S0,
+G0 y U0 del runner `experiments/compare_qgd_adam.py` sobre el árbol de trabajo
+sucio basado en HEAD `164eaee2b05ed53f9950afe8a272ca91f5e292df`. Se conservaron
+12 JSON válidos y 15 logs en `results/quantum-training/`; los tres logs sin JSON
+corresponden a fallos de U0. No se ejecutaron S1, G1, G2, U1 ni hardware/QPU.
+Todos los JSON declaran `screening=true`, dos épocas/pasos,
+`test.evaluated=false` y la revisión citada; ninguno contiene métricas de test.
+
+**Configuración común:** Iris binario, codificación angular, split estratificado
+70/15/15, semilla de dataset `42`, semilla de inicialización `19`, semillas de
+ejecución `101` y `102`, MSE frente a etiquetas `-1/+1`, selección de checkpoint
+por menor MSE de validation, Adam con `lr=0.03` y QGD con `b=5`,
+`weight=[-π,π]`, `grad=[-1,1]` y `lr=0.1`. La inicialización se comparte
+exactamente entre métodos. `p_model` afecta a los circuitos QCNN y `p_update`
+solo a los circuitos aritméticos de QGD; sus coberturas no son un mismo canal
+físico. Cada JSON conserva `provenance`, semillas, configuración, pesos
+iniciales y el estado de test; los logs conservan `WALL_SECONDS` y, salvo la
+excepción indicada, `EXIT_CODE`.
+
+**Inventario:**
+
+| Bloque | JSON | Configuración ejecutada | Estado |
+|---|---:|---|---|
+| S0 | 7 | 1 referencia exacta (`shots=None`, `p=0`, ejecución 101) y 6 pares finite-shot (`shots=100/500/1000` × ejecuciones 101/102; `p_model=p_update=0`) | Parcial: falta la segunda referencia exacta prevista; no hay test. |
+| G0 | 4 | Pares Adam–QGD con 100 shots, `p_model=0.001/0.01`, `p_update=0`, ejecuciones 101/102 | Completo para el bloque pareado definido; no hay test. |
+| U0 | 1 + 3 fallos | QGD-only, `p_model=0`, 100 shots, `p_update=0.001/0.01`, ejecuciones 101/102 | Parcial: solo `p_update=0.001`, ejecución 101 produjo JSON; tres ejecuciones fallaron. El caso `p_update=0` no se lanzó como U0. |
+
+**Tiempos observados:** son medidas de pared y de entrenamiento de este
+checkout, no un presupuesto ni una extrapolación.
+
+| Bloque | Pared por ejecución | Adam (entrenamiento) | QGD (entrenamiento) |
+|---|---:|---:|---:|
+| S0 exacto | 14,278 s | 4,025 s | 4,345 s |
+| S0 finite-shot | 17,048–17,901 s | 5,512–5,740 s | 5,732–5,928 s |
+| G0 | 99,440–102,606 s | 46,686–48,122 s | 46,981–48,558 s |
+| U0 válido | 10,789 s | — | 6,171 s |
+| U0 fallos | 7,255–10,374 s | — | — |
+
+El total de pared de los 12 JSON válidos fue 531,969 s (≈8,9 min); incluyendo
+los tres fallos, 556,924 s (≈9,3 min). G0 dominó el coste. Estas cifras no
+permiten extrapolar 30 pasos, otras semillas, otros datasets ni hardware.
+
+**Validez de los artefactos:** los 12 JSON se cargaron con `json.load` sin
+errores. Hay 15 logs: 12 asociados a JSON y 3 de fallo. Uno de los logs
+correctos (S0, 100 shots, ejecución 101) no contiene la línea `EXIT_CODE`, pero
+termina con `Wrote ...` y `WALL_SECONDS=17.901`; el JSON correspondiente existe.
+Los tres logs de fallo contienen `EXIT_CODE=1`. No se modificó ningún JSON ni
+log.
+
+**Hallazgos operativos y límites:**
+
+1. **La actualización QGD no movió los pesos más allá de la cuantización
+   inicial.** Los 12 JSON comparten exactamente el mismo vector final de QGD;
+   ese vector coincide con la cuantización del vector inicial a la rejilla de
+   32 niveles. La causa derivada del código es que, con `b=5`, `lr=0.1`,
+   `weight=[-π,π]` y `grad=[-1,1]`, el delta entero
+   `round(lr·g·(2^b−1)/(weight_max−weight_min))` es cero para los 32 códigos
+   de gradiente (valor absoluto máximo ≈0,493). Por tanto, el primer paso solo
+   cuantiza los pesos y los pasos siguientes no los mueven. No es un fallo de
+   ejecución, pero impide interpretar estos screens como una trayectoria de
+   aprendizaje QGD. El mismo patrón aparece en los cinco perfiles M5 de dos
+   pasos: los cinco JSON declaran `qgd.n_bits=5` y `qgd.learning_rate=0.1`, y
+   sus pesos finales coinciden con la cuantización inicial. La sección 29
+   registra la comprobación read-only con `b=5/lr=0.2` y la tabla de compromiso
+   `b/lr`. Antes de confirmar debe revisarse la resolución de la rejilla y el
+   `lr` de QGD, junto con la aceptación metodológica pendiente.
+2. **U0 no está completo.** Tres de las cuatro ejecuciones U0 fallaron con
+   `RuntimeError: measured QGD gradient register differs from its input code.`,
+   lanzado en `decode_update_counts` (`src/quantum_update.py`) a través de
+   `quantum_update_step`. Ocurrió en `p_update=0.001` con ejecución 102 y en
+   `p_update=0.01` con ejecuciones 101 y 102. El mensaje indica que el registro
+   de gradiente medido no coincide con el código de entrada; la causa concreta
+   no se ha aislado. Los logs se conservan y no hay JSON para esos fallos.
+3. **La única ejecución U0 válida no demuestra inocuidad del ruido.** La
+   ejecución `p_update=0.001`, semilla 101, produjo un historial y unos pesos
+   finales idénticos a los de S0 con 100 shots y semilla 101; sus
+   probabilidades de modo fueron 1,0. Ese valor es estructural bajo el muestreo
+   de ruido de Qibo 0.1.11: el canal se aplica una vez por ejecución del
+   circuito y los shots comparten la misma trayectoria de Pauli, de modo que no
+   demuestra ausencia de ruido (sección 29). Es una observación de una sola
+   semilla y dos pasos; no permite generalizar la causa, la tasa de fallo ni el
+   efecto de `p_update`.
+4. **G0 completó el bloque pareado definido.** Las cuatro ejecuciones
+   (`p_model=0.001/0.01` × semillas 101/102, 100 shots, `p_update=0`)
+   produjeron JSON con test no evaluado. No hubo fallos de ejecución en G0.
+   Los checkpoints y las pérdidas no se interpretan como comparación de
+   rendimiento.
+5. **S0 quedó incompleto respecto al recuento previsto.** Hay una referencia
+   exacta y seis pares finite-shot. La segunda referencia exacta no se generó;
+   aunque la ejecución exacta es determinista, no se ha decidido si basta con
+   una repetición o si debe documentarse su reutilización.
+6. **Alcance limitado.** Los screens usan un dataset (Iris angular), una
+   inicialización, dos semillas de ejecución y dos pasos; no evalúan test, no
+   estiman convergencia ni generalización y no representan hardware. El ruido
+   es una sensibilidad de simulador local, no una calibración de QPU. Los
+   tiempos no autorizan un presupuesto.
+
+**Consecuencia y siguiente puerta:** el trabajo se detiene antes de las
+confirmaciones. Antes de S1, G1, G2 o U1 deben revisarse con el tutor la regla
+modular y los parámetros de rejilla/`lr`; aislarse o acotarse el fallo de U0;
+decidirse la segunda referencia exacta de S0 y si se reutiliza S0 para
+`p_update=0`; y presentarse al responsable el coste observado y el alcance de
+las confirmaciones. Estos resultados no autorizan ninguna confirmación. No se
+modificaron `main.py`, los JSON históricos ni los resultados M5; no se hizo
+commit. `git diff --check` no detectó errores; Git emitió solo avisos LF/CRLF.
+
+## 29. Validación actual y decisiones pendientes antes de un commit (10 de noviembre de 2026)
+
+**Estado — Validado unitariamente; screens parciales; no evaluación de rendimiento:** esta sección cierra la revisión del árbol de trabajo sucio basado en HEAD `164eaee2b05ed53f9950afe8a272ca91f5e292df`. No se ha hecho commit, no se han lanzado experimentos nuevos y no se han modificado los JSON ni los logs de `results/quantum-training/`.
+
+**Validación ejecutada:** el 10 de noviembre de 2026 se ejecutaron las comprobaciones siguientes sobre el árbol de trabajo actual:
+
+```text
+qml_env\Scripts\python.exe -m unittest discover -s tests -v
+Ran 92 tests in 9.774s
+OK
+
+qml_env\Scripts\python.exe -m compileall -q src experiments tests
+OK
+
+git diff --check
+OK (solo avisos LF/CRLF)
+```
+
+Los 17 JSON de `results/quantum-training/` se cargaron con `json.load` sin errores. Los 12 screens declaran `configuration.screening=true` y `methods.*.test.evaluated=false`; los cinco perfiles M5 no declaran evaluación de test. Hay 15 logs: 12 asociados a JSON válidos y 3 de fallos de U0. Los 12 screens comparten exactamente la misma matriz final de QGD (dos pasos por cuatro pesos) y esa matriz coincide con la cuantización del vector inicial en la rejilla de 32 niveles. Los cinco JSON M5 declaran `qgd.n_bits=5` y `qgd.learning_rate=0.1`, y sus pesos finales también coinciden con la cuantización inicial.
+
+**Aclaración de conteos:** 73 es la suite completa registrada el 7 de noviembre de 2026 (sección 25); 88 es la suma de los seis grupos dirigidos del 8 de noviembre (sección 27), no una suite completa; 92 es la suite completa actual. Los tres conteos son históricos y no se contradicen.
+
+**Diagnóstico del no-op de QGD:** con `b=5`, `lr=0.1`, `weight=[-π,π]` y `grad=[-1,1]`, el delta entero
+
+```text
+round(lr · g · (2^b − 1) / (weight_max − weight_min))
+```
+
+es cero para los 32 códigos de gradiente. El máximo absoluto es `0.4934 < 0.5`, de modo que `rint` devuelve cero en todos los casos; el primer código se movería solo por encima de `lr = π/31 ≈ 0.10134` (en el valor exacto, `np.rint(0.5)` redondea a cero por redondeo al par). No es un fallo de ejecución: es un problema de resolución de la rejilla y del `lr`. Una comprobación read-only con `QGDConfig(n_bits=5, learning_rate=0.2)` y pesos/gradientes de prueba coincidió con `classical_grid_update` y movió 16 de los 32 códigos de gradiente; con `b=5/lr=0.1` movió 0 de 32. No se generaron resultados nuevos.
+
+La tabla siguiente resume el compromiso entre resolución, número de códigos que se mueven y coste lógico. Las cotas de puertas son `gate_count_per_circuit_upper_bound` de `estimate_update_resources`: instrucciones lógicas de Qibo sin transpilar, no coste de hardware.
+
+| Configuración | Qubits por update | Códigos de gradiente que mueven | Cota de puertas |
+|---|---:|---:|---:|
+| `b=5`, `lr=0.1` | 10 | 0/32 | 171 |
+| `b=5`, `lr=0.15` | 10 | 12/32 | 651 |
+| `b=5`, `lr=0.2` | 10 | 16/32 | 811 |
+| `b=4`, `lr=0.5` | 8 | 10/16 | 303 |
+
+`b=6` no está permitido por `QGDConfig` (solo admite 2–5). `b=4/lr=0.5` usa menos qubits, pero una rejilla más gruesa. Ninguna fila es una recomendación aprobada: la configuración oficial y la aceptación de la regla modular siguen pendientes del tutor.
+
+**Limitación del muestreo de ruido en Qibo 0.1.11:** el canal depolarizante no se muestrea por shot. `NumpyBackend.apply_channel` (`qml_env/Lib/site-packages/qibo/backends/numpy.py:250`) sortea cada operador de Pauli una vez por llamada a `apply_channel`, y `execute(nshots=100)` llama al canal una vez por ejecución del circuito. Por tanto, los 100 shots comparten la misma trayectoria aleatoria de Pauli: los shots no promedian realizaciones de ruido. La comprobación empírica con un circuito de un qubit (`X`, `DepolarizingChannel((0,), lam=0.5)`, medida, 100 shots, semillas 0–9) produjo 100 copias del mismo resultado en cada semilla; 3 de 10 semillas invirtieron el bit. En consecuencia, una `mode_probability=1.0` no demuestra ausencia de ruido. La única ejecución U0 válida es una trayectoria sin error que afecte al registro de gradiente; los tres fallos son trayectorias con error. Esto aplica tanto a `p_model` como a `p_update` y no constituye un modelo de errores por shot ni una calibración de hardware.
+
+**Decisiones pendientes antes del commit:**
+
+1. `requirements.txt` — **resuelto:** HEAD está en UTF-16LE (122 líneas); el árbol actual está en UTF-8 (51 líneas) y elimina el stack Jupyter y `torchvision`. El responsable aprobó explícitamente el 10 de noviembre de 2026 incluir este cambio en el commit de cierre. Git sigue viendo el archivo antiguo como binario; el cambio es intencionado y queda registrado aquí.
+2. `load_binary_iris()` — **resuelto:** se eliminó de `src/datasets.py` en el árbol actual. No se encontraron usos internos, pero era un loader público retrocompatible; es una ruptura de API. Se decide documentar la ruptura como intencionada y no restaurar la función en esta revisión; los consumidores deben usar `load_binary_iris_splits()`.
+3. QGD `b/lr` y regla modular: la configuración `b=5/lr=0.1` es un no-op y la variante modular no es el clipping propuesto. La decisión corresponde al tutor.
+4. Política de U0: hay tres fallos de decodificación y una sola ejecución válida. Debe decidirse si se mantiene el rechazo estricto, se relaja la comprobación del registro de gradiente, se reintenta o se registra el fallo como resultado ruidoso.
+5. S0: falta la segunda referencia exacta prevista. Debe generarse o documentarse la decisión de reutilizar la existente.
+
+**Documentos de planificación y memoria:** `docs/quantum-training-plan.md` conserva su encabezado histórico del 7 de noviembre y M1-M4; no se editó. Para el estado vigente prevalecen este log y el código. La memoria LaTeX conserva marcadores `\pending{}` y una bibliografía sin referencias verificadas; no se editó y no debe presentarse como finalizada.
+
+**Veredicto de commit:** el árbol es apto para un commit que se presente como «implementación M1-M5 + screens parciales», no como evaluación de rendimiento. Condiciones: (i) no presentar S0/G0/U0 como convergencia, generalización o rendimiento; (ii) incluir `requirements.txt` con la aprobación explícita registrada; (iii) mantener documentada la ruptura de `load_binary_iris()` como intencionada; (iv) conservar los JSON, los logs y los fallos U0; (v) mantener `b/lr` y la política de U0 como decisiones pendientes del tutor. No se ha hecho commit.

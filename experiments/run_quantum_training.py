@@ -11,10 +11,17 @@ import copy
 from dataclasses import asdict
 import json
 from pathlib import Path
+import subprocess
+import sys
 from typing import Any
 
 import numpy as np
 
+from src.circuit_execution import (
+    QiboSimulatorExecutor,
+    ResourceProfile,
+    qibo_local_depolarizing_sensitivity_transform,
+)
 from src.datasets import (
     load_binary_breast_cancer_splits,
     load_binary_iris_splits,
@@ -31,11 +38,36 @@ from src.quantum_update import QGDConfig
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 HISTORICAL_RESULTS = REPOSITORY_ROOT / "results" / "initial-hybrid-adam"
+SIMULATOR_NOISE_MODEL = (
+    "independent single-qubit depolarizing channel on each qubit touched by "
+    "each non-measurement logical gate (including controlled-X gates)"
+)
+QIBO_BUILTIN_NOISE_MODEL = (
+    "Qibo depolarizing error after RY, RZ and CNOT gates; no arithmetic-update "
+    "coverage is implied"
+)
 
 
 def _tensor_to_numpy(tensor) -> np.ndarray:
     """Convert loader tensors to arrays at the classical/quantum boundary."""
     return tensor.detach().cpu().numpy().astype(float, copy=False)
+
+
+def _parse_shots(value: str) -> int | None:
+    """Accept a positive shot count or ``exact`` for simulator-only mode."""
+    if value.strip().lower() in {"exact", "none"}:
+        return None
+    try:
+        shots = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "shots must be a positive integer or 'exact'."
+        ) from exc
+    if shots < 1:
+        raise argparse.ArgumentTypeError(
+            "shots must be a positive integer or 'exact'."
+        )
+    return shots
 
 
 def _binary_metrics(predictions, targets) -> dict[str, float]:
@@ -82,6 +114,55 @@ def _load_splits(dataset: str, dataset_seed: int):
     raise ValueError("dataset must be 'iris' or 'breast-cancer'.")
 
 
+def _collect_run_provenance(command_arguments: list[str]) -> dict[str, Any]:
+    """Capture Git revision, dirty paths, and effective CLI invocation."""
+    try:
+        revision_result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=REPOSITORY_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        status_result = subprocess.run(
+            ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+            cwd=REPOSITORY_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        working_tree_status = [
+            line for line in status_result.stdout.splitlines() if line.strip()
+        ]
+        git_metadata_error = None
+        revision = revision_result.stdout.strip() or None
+    except (OSError, subprocess.CalledProcessError) as exc:
+        revision = None
+        working_tree_status = []
+        git_metadata_error = str(exc)
+
+    if command_arguments:
+        command_argv = [
+            sys.executable,
+            "-m",
+            "experiments.run_quantum_training",
+            *command_arguments,
+        ]
+    else:
+        original_argv = getattr(sys, "orig_argv", None)
+        command_argv = list(original_argv) if original_argv else list(sys.argv)
+
+    return {
+        "git_revision": revision,
+        "working_tree_dirty": (
+            None if git_metadata_error is not None else bool(working_tree_status)
+        ),
+        "working_tree_status": working_tree_status,
+        "git_metadata_error": git_metadata_error,
+        "command_argv": command_argv,
+    }
+
+
 def build_result_payload(
     *,
     dataset: str,
@@ -96,6 +177,11 @@ def build_result_payload(
     test_predictions: np.ndarray,
     test_targets: np.ndarray,
     test_execution_seed: int,
+    provenance: dict[str, Any] | None = None,
+    simulator_noise_probability: float | None = None,
+    simulator_noise_model: str | None = None,
+    simulator_noise_applied_to: tuple[str, ...] | None = None,
+    measured_execution_requested: bool | None = None,
 ) -> dict[str, Any]:
     """Assemble the JSON payload after the single final test prediction pass."""
     target_values = np.asarray(test_targets, dtype=float)
@@ -114,6 +200,40 @@ def build_result_payload(
     circuit_counts["total_including_final_test_circuit_executions_estimate"] = (
         training_total + test_circuit_count
     )
+    requested_noise = (
+        model_config.execution.depolarizing_probability
+        if simulator_noise_probability is None
+        else float(simulator_noise_probability)
+    )
+    if simulator_noise_model is not None:
+        noise_description = simulator_noise_model
+    elif requested_noise == 0:
+        noise_description = "none"
+    elif model_config.executor is None:
+        noise_description = QIBO_BUILTIN_NOISE_MODEL
+    else:
+        noise_description = "executor-defined; see declared resource metadata"
+    measured_execution_enabled = model_config.executor is not None
+    if measured_execution_requested is None:
+        measured_execution_requested = measured_execution_enabled
+    if not isinstance(measured_execution_requested, bool):
+        raise ValueError("measured_execution_requested must be a bool or None.")
+    if measured_execution_enabled:
+        if isinstance(model_config.executor, QiboSimulatorExecutor):
+            executor_mode = (
+                "qibo_simulator_measured_with_sensitivity_noise"
+                if model_config.executor.noise_transform is not None
+                else "qibo_simulator_measured"
+            )
+        else:
+            executor_mode = type(model_config.executor).__name__
+    else:
+        executor_mode = "default_qibo_simulator"
+    initial_gradient_mode = (
+        "parameter_shift_shots"
+        if measured_execution_enabled
+        else "exact_initialization"
+    )
 
     return {
         "dataset": {
@@ -126,6 +246,17 @@ def build_result_payload(
             },
             "preprocessing": "fit on train only; loader returns normalized features",
         },
+        "provenance": copy.deepcopy(
+            provenance
+            if provenance is not None
+            else {
+                "git_revision": None,
+                "working_tree_dirty": None,
+                "working_tree_status": [],
+                "git_metadata_error": "not supplied to payload builder",
+                "command_argv": None,
+            }
+        ),
         "seeds": {
             "dataset": int(dataset_seed),
             "initialization": int(initialization_seed),
@@ -139,9 +270,24 @@ def build_result_payload(
             "n_qubits": model_config.n_qubits,
             "n_outputs": model_config.n_outputs,
             "encoding": model_config.encoding,
-            "depolarizing_probability": (
+            "measured_execution": measured_execution_enabled,
+            "measured_execution_requested": measured_execution_requested,
+            "executor_mode": executor_mode,
+            "depolarizing_probability": requested_noise,
+            "execution_config_depolarizing_probability": (
                 model_config.execution.depolarizing_probability
             ),
+            "simulator_noise": {
+                "requested_probability": requested_noise,
+                "model": noise_description,
+                "scope": (
+                    "simulator-only sensitivity model; not calibrated or claimed "
+                    "to represent physical hardware noise"
+                ),
+                "applied_to": (
+                    list(simulator_noise_applied_to or ())
+                ),
+            },
         },
         "initial_weights": np.asarray(initial_weights, dtype=float).tolist(),
         "qgd": {
@@ -154,6 +300,10 @@ def build_result_payload(
         },
         "training": {
             **asdict(training_config),
+            "initial_gradient_mode": initial_gradient_mode,
+            "initial_gradient_shots": (
+                training_config.shots if measured_execution_enabled else None
+            ),
             "learning_rate": qgd_config.learning_rate,
             "steps_completed": training_result.steps_completed,
             "best_step": training_result.best_step,
@@ -182,18 +332,31 @@ def build_result_payload(
                 "host computes parameter-shift differences from exact, noiseless "
                 "Qibo simulator circuits; this is classical orchestration and "
                 "postprocessing, not a quantum gradient register."
+                if model_config.executor is None
+                else "host computes parameter-shift differences from measured "
+                "executor circuits using finite shots; this is classical "
+                "orchestration and postprocessing, not a quantum gradient register."
             ),
             "later_gradients": (
-                "Qibo circuits are sampled with the configured shots; the host "
-                "reads expectations and assembles parameter-shift gradients."
+                "Qibo circuits use configured finite shots, or exact simulation "
+                "when shots is null; the host reads expectations and assembles "
+                "parameter-shift gradients."
             ),
             "weight_update": (
-            "one reversible Qibo permutation circuit per scalar weight; "
-            "the exact simulator state vector is decoded classically (no shots)."
+                "one measured arithmetic Qibo circuit per scalar weight; host "
+                "encodes the gradient register and decodes the unique modal "
+                "bitstring from counts. The update circuit applies the modular "
+                "subtraction; update shots are recorded in the resource estimate. "
+                "No state-vector access is used by this path."
             ),
             "control_and_selection": (
                 "loss calculation, validation checkpoint selection, stopping, "
                 "and test metric postprocessing are classical."
+            ),
+            "hardware_status": (
+                "The CLI uses the local Qibo simulator. No vendor adapter, "
+                "transpilation, connectivity validation, or hardware execution "
+                "is selected or claimed."
             ),
         },
     }
@@ -228,12 +391,28 @@ def _build_parser() -> argparse.ArgumentParser:
         help="binary dataset (default: iris)",
     )
     parser.add_argument("--max-steps", type=int, default=1)
-    parser.add_argument("--shots", type=int, default=100)
+    parser.add_argument(
+        "--shots",
+        type=_parse_shots,
+        default=100,
+        help="positive finite-shot budget, or 'exact' for noiseless simulator mode",
+    )
     parser.add_argument(
         "--noise",
         type=float,
         default=0.0,
-        help="depolarizing probability for shot-based gradients/evaluations",
+        help=(
+            "simulator-only local depolarizing sensitivity probability "
+            "(not a physical noise calibration)"
+        ),
+    )
+    parser.add_argument(
+        "--measured-execution",
+        action="store_true",
+        help=(
+            "use a measured Qibo executor for the initial gradient and all "
+            "predictions even when --noise is zero"
+        ),
     )
     parser.add_argument("--learning-rate", type=float, default=0.1)
     parser.add_argument("--qgd-bits", type=int, default=5)
@@ -253,9 +432,15 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
-    args = parser.parse_args(argv)
+    command_arguments = list(sys.argv[1:] if argv is None else argv)
+    args = parser.parse_args(command_arguments)
+    if args.shots is None and (args.noise > 0.0 or args.measured_execution):
+        parser.error(
+            "--shots exact cannot be combined with --measured-execution or non-zero --noise."
+        )
     try:
         output_path = _resolve_new_output_path(args.output)
+        provenance = _collect_run_provenance(command_arguments)
         training_config = QuantumTrainingConfig(
             max_steps=args.max_steps,
             shots=args.shots,
@@ -266,11 +451,40 @@ def main(argv: list[str] | None = None) -> int:
             n_bits=args.qgd_bits,
             learning_rate=args.learning_rate,
         )
-        execution_config = ExecutionConfig(
-            depolarizing_probability=args.noise,
+        requested_noise_config = ExecutionConfig(
+            depolarizing_probability=args.noise
         )
     except ValueError as exc:
         parser.error(str(exc))
+
+    measured_execution_enabled = (
+        args.measured_execution or requested_noise_config.noisy
+    )
+    simulator_executor = None
+    if measured_execution_enabled:
+        noise_model_metadata = {
+            "adapter": "qibo-local-simulator",
+            "noise_model": (
+                SIMULATOR_NOISE_MODEL
+                if requested_noise_config.noisy
+                else "none"
+            ),
+            "noise_probability": requested_noise_config.depolarizing_probability,
+            "execution_mode": "measured-counts",
+        }
+        simulator_executor = QiboSimulatorExecutor(
+            capabilities=ResourceProfile(metadata=noise_model_metadata),
+            noise_transform=(
+                qibo_local_depolarizing_sensitivity_transform(
+                    requested_noise_config.depolarizing_probability
+                )
+                if requested_noise_config.noisy
+                else None
+            ),
+        )
+    # Noise is supplied by the shared executor on both QCNN and QGD circuits;
+    # leave the built-in QCNN-only model disabled to avoid double application.
+    execution_config = ExecutionConfig(depolarizing_probability=0.0)
 
     splits = _load_splits(args.dataset, args.dataset_seed)
     # Torch is intentionally touched only here, at the loader-to-NumPy boundary.
@@ -284,22 +498,26 @@ def main(argv: list[str] | None = None) -> int:
         n_outputs=1,
         encoding=args.encoding,
         execution=execution_config,
+        executor=simulator_executor,
     )
     initial_weights = initialize_weights(
         model_config.n_qubits,
         n_outputs=model_config.n_outputs,
         seed=args.initialization_seed,
     )
-    training_result = train_quantum_qcnn(
-        train_features,
-        train_targets,
-        validation_features,
-        validation_targets,
-        initial_weights,
-        model_config,
-        qgd_config,
-        training_config,
-    )
+    try:
+        training_result = train_quantum_qcnn(
+            train_features,
+            train_targets,
+            validation_features,
+            validation_targets,
+            initial_weights,
+            model_config,
+            qgd_config,
+            training_config,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
 
     # The test partition is evaluated exactly once, only after validation has
     # selected the checkpoint. Conversion is deferred to this boundary too.
@@ -322,6 +540,7 @@ def main(argv: list[str] | None = None) -> int:
             ),
             seed=test_execution_seed,
         ),
+        executor=model_config.executor,
     )
     test_predictions = predict(
         training_result.best_weights,
@@ -341,6 +560,19 @@ def main(argv: list[str] | None = None) -> int:
         test_predictions=test_predictions,
         test_targets=test_targets,
         test_execution_seed=test_execution_seed,
+        provenance=provenance,
+        simulator_noise_probability=requested_noise_config.depolarizing_probability,
+        simulator_noise_model=(
+            SIMULATOR_NOISE_MODEL
+            if requested_noise_config.noisy
+            else "none"
+        ),
+        simulator_noise_applied_to=(
+            ("QCNN circuits", "QGD arithmetic update circuits")
+            if requested_noise_config.noisy
+            else ()
+        ),
+        measured_execution_requested=args.measured_execution,
     )
     serialized = json.dumps(payload, indent=2, allow_nan=False) + "\n"
 

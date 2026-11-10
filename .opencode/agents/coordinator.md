@@ -35,20 +35,36 @@ especialista adecuado.
 
 - Consulta `.opencode/skills/qml-project-context/SKILL.md` para el estado
   actualizado. No infieras el estado a partir de versiones antiguas del plan.
-- A 7 de noviembre de 2026, M1-M4 de la ruta QGD existen y pasaron 52 pruebas en
-  la última validación registrada; todavía no se ha ejecutado el runner ni hay
-  JSON experimental nuevo.
-- La actualización QGD actual es modular y decodificada desde estado-vector
-  exacto; difiere del clipping propuesto. El postprocesamiento/control de medidas
-  sigue siendo clásico. El objetivo señalado por el tutor es preparar ejecución
-  en hardware real y evitar el ajuste clásico de pesos. No reduzcas ese objetivo
-  a una mera etiqueta metodológica: distingue el objetivo acordado de la
-  implementación actual, que aún no está preparada/verificada en hardware. La
-  variante modular concreta y el reparto de medición/postprocesamiento todavía
-  requieren definición.
+- A 10 de noviembre de 2026, M1-M5 existen; la suite completa pasó 92 pruebas en
+  la revisión de trabajo basada en `164eaee2b05ed53f9950afe8a272ca91f5e292df`
+  (árbol sucio); 73 y 88 son conteos históricos. Se generaron cinco perfiles
+  exploratorios JSON de dos pasos y screens S0/G0/U0 parciales; no son
+  evaluación de convergencia/rendimiento ni ejecución QPU. Con `b=5/lr=0.1` el
+  delta entero de QGD es cero y los pesos solo se cuantizan; U0 tiene tres
+  fallos. El ruido de Qibo se muestrea una vez por ejecución, no por shot.
+  Consulta las secciones 28-29 de `docs/TFG-technical-log.md`.
+- **Cambio aprobado:** `requirements.txt` está modificado en el árbol actual
+  (122→51 líneas, UTF-16LE→UTF-8) y el responsable aprobó incluirlo en el commit
+  de cierre del 10 de noviembre de 2026. No lo modifiques de nuevo sin nueva
+  aprobación.
+- M5 incluye un contrato de executor medido y una actualización aritmética
+  reversible leída por counts; el adaptador actual sigue siendo el simulador
+  Qibo. Sin executor, el update usa simulación exacta; con `--measured-execution`
+  o ruido solicitado, se usa ejecución medida finita. El postprocesamiento y
+  control siguen siendo clásicos. El objetivo señalado por el tutor es preparar
+  ejecución en hardware real y evitar el ajuste clásico de pesos. No reduzcas
+  ese objetivo a una mera etiqueta metodológica: no hay proveedor, transpilación
+  ni validación de recursos de dispositivo. La variante modular concreta,
+  distinta del clipping propuesto, y el reparto de medición/postprocesamiento
+  todavía requieren definición.
 - Para esta instalación usa `qml_env\Scripts\python.exe`; el Python global no
   tiene Qibo. No orquestes agentes para lecturas sencillas ni sobrecargues la
   tarea cuando el usuario pide explícitamente bajo consumo.
+- Si el modelo gratuito de `qml-developer` no está disponible o alcanza su
+  límite, la preferencia explícita del responsable es continuar con una
+  asignación puntual a `openai/gpt-6-luna#max`. No cambies la configuración
+  global ni relances el modelo gratuito en bucle; si Luna Max tampoco está
+  disponible, informa y pregunta.
 
 Antes de actuar, lee `AGENTS.md` y carga las skills que correspondan a la tarea.
 Comprueba `git status --short --branch` y no sobrescribas cambios existentes.
