@@ -606,6 +606,11 @@ qml_env\Scripts\python.exe -m compileall src experiments tests
 LF/CRLF en documentación preexistente. Estas comprobaciones validan el código y
 su integración unitaria, no el comportamiento experimental del entrenamiento.
 
+> **Nota (12 de noviembre de 2026):** la descripción de la actualización por
+> estado-vector y `argmax` de esta sección corresponde a M4 y quedó sustituida
+> en M5 (sección 25): el update es un circuito medido (un shot determinista sin
+> executor, counts con executor) y no usa la API de estado-vector.
+
 **Flujo y frontera clásica-cuántica:** `src/quantum_training.py` no importa
 PyTorch. El runner importa `src.datasets` al cargarse, y este loader importa
 PyTorch; la conversión de sus tensores ocurre después, en la frontera de entrada
@@ -671,7 +676,7 @@ Por tanto, deben distinguirse:
 
 - **Objetivo acordado:** compatibilidad con ejecución en hardware real y pesos
   actualizados mediante circuitos, evitando una actualización clásica.
-- **Estado implementado:** M4 ejecuta circuitos en el simulador Qibo; el circuito
+- **Estado implementado (a 7 de noviembre; sustituido por la sección 25):** M4 ejecuta circuitos en el simulador Qibo; el circuito
   de actualización se decodifica desde el estado-vector exacto mediante
   postprocesamiento clásico y no usa shots. El módulo de entrenamiento sigue
   dependiendo de lógica clásica para extraer y combinar información de
@@ -1002,7 +1007,7 @@ git diff --check
 OK (solo avisos LF/CRLF)
 ```
 
-Los 17 JSON de `results/quantum-training/` se cargaron con `json.load` sin errores. Los 12 screens declaran `configuration.screening=true` y `methods.*.test.evaluated=false`; los cinco perfiles M5 no declaran evaluación de test. Hay 15 logs: 12 asociados a JSON válidos y 3 de fallos de U0. Los 12 screens comparten exactamente la misma matriz final de QGD (dos pasos por cuatro pesos) y esa matriz coincide con la cuantización del vector inicial en la rejilla de 32 niveles. Los cinco JSON M5 declaran `qgd.n_bits=5` y `qgd.learning_rate=0.1`, y sus pesos finales también coinciden con la cuantización inicial.
+Los 17 JSON de `results/quantum-training/` se cargaron con `json.load` sin errores. Los 12 screens declaran `configuration.screening=true` y `methods.*.test.evaluated=false`; los cinco perfiles M5 contienen un bloque `test` evaluado una vez tras seleccionar el checkpoint (`evaluated_once_after_checkpoint_selection=true`; corrección del 12 de noviembre de 2026: la redacción original decía que no declaraban evaluación de test, lo que contradecía los JSON, la sección 25 y el protocolo). Hay 15 logs: 12 asociados a JSON válidos y 3 de fallos de U0. Los 12 screens comparten exactamente la misma matriz final de QGD (dos pasos por cuatro pesos) y esa matriz coincide con la cuantización del vector inicial en la rejilla de 32 niveles. Los cinco JSON M5 declaran `qgd.n_bits=5` y `qgd.learning_rate=0.1`, y sus pesos finales también coinciden con la cuantización inicial.
 
 **Aclaración de conteos:** 73 es la suite completa registrada el 7 de noviembre de 2026 (sección 25); 88 es la suma de los seis grupos dirigidos del 8 de noviembre (sección 27), no una suite completa; 92 es la suite completa actual. Los tres conteos son históricos y no se contradicen.
 
@@ -1038,3 +1043,152 @@ La tabla siguiente resume el compromiso entre resolución, número de códigos q
 **Documentos de planificación y memoria:** `docs/quantum-training-plan.md` conserva su encabezado histórico del 7 de noviembre y M1-M4; no se editó. Para el estado vigente prevalecen este log y el código. La memoria LaTeX conserva marcadores `\pending{}` y una bibliografía sin referencias verificadas; no se editó y no debe presentarse como finalizada.
 
 **Veredicto de commit:** el árbol es apto para un commit que se presente como «implementación M1-M5 + screens parciales», no como evaluación de rendimiento. Condiciones: (i) no presentar S0/G0/U0 como convergencia, generalización o rendimiento; (ii) incluir `requirements.txt` con la aprobación explícita registrada; (iii) mantener documentada la ruptura de `load_binary_iris()` como intencionada; (iv) conservar los JSON, los logs y los fallos U0; (v) mantener `b/lr` y la política de U0 como decisiones pendientes del tutor. No se ha hecho commit.
+
+## 30. Correcciones tras la auditoría independiente y nueva línea variacional (12 de noviembre de 2026)
+
+**Origen:** auditoría independiente de `bc877bd` (informe `AUDIT.md`, fuera del repositorio, en el paquete de traspaso). Con autorización del responsable se ejecutó primero la suite en `bc877bd` limpio: `qml_env\Scripts\python.exe -B -m unittest discover -s tests -v` → `Ran 92 tests in 11.050s — OK`. Después se aplicaron las correcciones siguientes sobre un árbol de trabajo sucio basado en `bc877bd`. No se hizo commit, no se lanzaron experimentos y no se modificó ningún JSON ni log existente.
+
+**Ruido (Implementado y Validado unitariamente).** Se comprobó en el código de Qibo 0.1.11 que `DepolarizingChannel` no es un `UnitaryChannel`: en estado-vector se muestrea una sola trayectoria por ejecución, compartida por todos los shots. Se encontraron además dos defectos de Qibo 0.1.11: (i) en modo matriz de densidad, `DepolarizingChannel.apply_density_matrix` despolariza todo el registro y no solo el qubit objetivo (comprobado con un circuito de dos qubits: el qubit no afectado pasó de `P(1)=1` a `0.5`); (ii) en ejecución repetida con medidas, todos los shots reutilizan la muestra del primero. Corrección: `qibo_local_depolarizing_sensitivity_transform` usa `PauliNoiseChannel(px=py=pz=p/4)` (equivalente a `rho -> (1-p) rho + p I/2`) con tres modos: `density_matrix` (por defecto, exacto, shots independientes), `per_shot_trajectories` (una trayectoria por shot; el executor ejecuta sin medidas y muestrea cada estado para evitar el defecto ii) y `legacy_shared_trajectory` (comportamiento anterior, solo para reproducir los JSON de noviembre). `ExecutionConfig.noise_simulation` controla el ruido integrado del motor, que ahora admite también valores esperados ruidosos exactos con `shots=None`. Los runners `run_quantum_training.py` y `compare_qgd_adam.py` usan matriz de densidad para la QCNN y trayectorias por shot para los circuitos de update (la matriz de densidad de 10 qubits es demasiado lenta), con `--noise-simulation legacy-shared-trajectory` para reproducir los resultados antiguos. El modo usado queda registrado en el JSON.
+
+**QGD (Implementado y Validado unitariamente).** (a) `QGDConfig.moving_gradient_codes` e `is_static`; los runners avisan por `stderr` y registran `moving_gradient_codes`/`static_update` en el JSON; `train_quantum_qcnn` emite un `RuntimeWarning`. (b) Los códigos de gradiente con desplazamiento cero ya no se sintetizan: en `b=5/lr=0.1` el circuito aritmético pasa de 160 puertas `X` inertes a 0, lo que elimina exposición al ruido sin efecto lógico. Las cotas de puertas de la sección 29 cambian en consecuencia. (c) El historial QGD registra el gradiente crudo, la fracción saturada y los pesos tras el update. (d) Nuevas pruebas no vacuas: equivalencia exhaustiva circuito–referencia en `b=2/lr=2.0`, `b=3/lr=1.0`, `b=3/lr=0.5`, `b=4/lr=0.5` y `b=4/lr=1.3`, y un paso de entrenamiento que mueve pesos. Las pruebas anteriores de equivalencia usaban configuraciones con delta cero y solo comparaban identidades. Sin cambios en la rejilla (extremos ±π duplicados y sin cero representable) ni en la regla modular: siguen pendientes del tutor.
+
+**Nueva línea variacional (Implementado y Validado unitariamente; no Evaluado).** Motivo: el modelo híbrido (circuito + optimizador clásico) es el modelo de ejecución estándar en hardware actual, y los resultados históricos sugieren un entrenamiento corto (30 épocas full-batch = 30 actualizaciones). Componentes:
+
+- `src/fast_qcnn.py`: simulador NumPy vectorizado del mismo circuito (codificación, convolución, pooling lógico), con matriz de densidad, ruido local tras `RY`/`RZ`/`CNOT`, error de lectura simétrico opcional y shots binomiales independientes. Las pruebas comprueban la igualdad con Qibo (exacto, con ruido en matriz de densidad y gradiente parameter-shift) con tolerancia `1e-10`. En una medición local, un gradiente completo de Breast Cancer (398 muestras) tarda 0,23 s frente a unos 17,6 s con Qibo.
+- `src/variational_training.py`: GD, Adam (igual a `torch.optim.Adam`, comprobado en prueba), SPSA y optimizador secuencial tipo Rotosolve/NFT. Este último reconstruye exactamente cada valor esperado como polinomio trigonométrico de grado `R` (número de apariciones del peso compartido: 3 en la capa 1 y 1 en la capa 2) con `2R+1` evaluaciones y minimiza el MSE en una rejilla fina. Checkpoint por pérdida de validation con el paso 0 como candidato; API sin test; contabilidad de circuitos de optimización y de evaluación por separado.
+- `experiments/run_variational_benchmark.py`: varias semillas de inicialización; test una sola vez tras el checkpoint, más un diagnóstico exacto sin ruido del mismo checkpoint, nunca usado para seleccionar; `--screening` para ajustar hiperparámetros sin tocar test; baselines de clase mayoritaria y regresión logística; huellas SHA-256 de las particiones; procedencia con hash del diff y de los archivos no versionados; directorio de salida nuevo y protección de `results/initial-hybrid-adam/`.
+- `experiments/analyze_variational_benchmark.py`: media, sd, mediana, IC95 % bootstrap sobre semillas, diferencias pareadas frente a una referencia (Wilcoxon solo con n ≥ 6), curvas de validation y aviso de no concluyente con n < 5.
+
+**Validación:** `qml_env\Scripts\python.exe -B -m unittest discover -s tests` → `Ran 124 tests — OK` sobre el árbol de trabajo descrito (basado en `bc877bd`). `git diff --check` sin errores (solo avisos LF/CRLF). Se hizo una prueba de humo en memoria de los cuatro optimizadores en Breast Cancer (30 pasos, exacto, sin persistir resultados); no constituye evaluación y sus cifras no deben citarse.
+
+**Pendiente:** ejecutar el protocolo variacional propuesto en `docs/experimental-protocol.md` (fase de ajuste con `--screening`, después confirmación con test una vez), solo con autorización; decisión del tutor sobre la regla y la rejilla QGD; política U0 con el ruido corregido; bibliografía verificada para SPSA, Adam y Rotosolve/NFT.
+
+## 31. Fase A del benchmark variacional: ajuste sin test (12 de noviembre de 2026)
+
+**Estado — Ejecutado (ajuste sobre validation); no es evaluación de rendimiento.** Con autorización del responsable se ejecutó la fase A del protocolo propuesto (`docs/experimental-protocol.md`, sección final) sobre el árbol de trabajo de la sección 30. Hash del diff sin commit: `de51dbcf89d418e91b063360751e10f90594896c21296757113fef4942513c6c`. 10 invocaciones × 2 codificaciones × 3 semillas = 60 entrenamientos en Breast Cancer, simulación exacta, 60 pasos, `--screening` (test no evaluado). Todas terminaron con `EXIT_CODE=0`. Los resultados, logs y análisis están en `results/variational/A-tuning-bc-exact/` (ver su `README.md`).
+
+**Selección según la regla fijada (menor media de la mejor pérdida de validation):** GD `lr=0.5` (0,4585), Adam `lr=0.1` (0,4257), SPSA `a=0.4` (0,5211, en el borde de la rejilla) y secuencial sin hiperparámetros (0,4235). Las diferencias entre los dos mejores valores de GD y de Adam son mínimas con n = 3. Varias condiciones siguen mejorando en el paso 60.
+
+**Decisiones pendientes antes de la fase B:** ampliar la rejilla de SPSA (`a ∈ {0.8, 1.6}`), también sin test; confirmar los valores elegidos; autorizar la fase B (8 semillas nuevas, 100 pasos, test una vez; exacto, 1000 shots y 1000 shots con ruido).
+
+**Ampliación de SPSA (12 de noviembre de 2026, sin test):** se añadieron `a=0.8` y `a=1.6` con la misma configuración; ambas invocaciones terminaron con `EXIT_CODE=0`. Medias de la mejor pérdida de validation: 0,4734 (`a=0.8`) y 0,4565 (`a=1.6`). Según la regla, SPSA queda en `a=1.6`, otra vez en el borde de la rejilla: en angular el mejor valor es 0.8 y en fase 1.6. Todo apunta a que SPSA está limitado por el número de pasos, por lo que la fase B debe incluir un bloque con presupuesto común de circuitos de optimización. Selección final de la fase A: GD `lr=0.5`, Adam `lr=0.1`, SPSA `a=1.6`/`c=0.1` y secuencial. Análisis conjunto (72 entrenamientos) en `results/variational/A-tuning-bc-exact/analysis-v2.md`. Entre ambas tandas solo cambió documentación.
+
+## 32. Fase B del benchmark variacional: confirmación con test una vez (12 de noviembre de 2026)
+
+**Estado: evaluado en simulación** (línea variacional/híbrida, no QGD). Diseño pre-registrado antes de ejecutar en `results/variational/B-confirm-bc/README.md`:
+
+- Hiperparámetros de la fase A: GD `lr=0.5`, Adam `lr=0.1`, SPSA `a=1.6`/`c=0.1`/`A=6`, y secuencial.
+- 8 semillas de inicialización nuevas (19–47), semilla de ejecución 101, Breast Cancer 398/85/86 y codificaciones angular y fase.
+- Bloques: B1 exacto; B2 1000 shots; B3 1000 shots con `p=0.001` y error de lectura 0.02 (los tres con 100 pasos); B4 con presupuesto común de 1 313 400 circuitos de optimización para SPSA y secuencial.
+- Checkpoint por validation y test evaluado una vez.
+
+Las 28 invocaciones (224 entrenamientos) terminaron con `EXIT_CODE=0`. Las de B3 sin SPSA tardaron 3,3–4,1 h cada una.
+
+**Procedencia:** revisión `bc877bd` con árbol sucio y hash del diff `035098290b95…`. Respecto a la fase A cambiaron `src/fast_qcnn.py`, con un refactor de rendimiento de las puertas de un qubit (`einsum` → 2×2 explícitas), y el runner, con la opción `--spsa-stability`. `tests.test_fast_qcnn` y `tests.test_variational_training` (21 pruebas, equivalencia con Qibo < 1e-10) pasaron con ese código el 12 de noviembre de 2026.
+
+**Resultados** (accuracy de test, media sobre 8 semillas; tablas completas con IC en `results/variational/B-confirm-bc/README.md` y `*-analysis.md`):
+
+- Baselines en test: clase mayoritaria 0,6279; regresión logística 0,9070.
+- Rango de la QCNN: 0,8459–0,9186. Mejor condición: Adam angular exacto, 0,9186, igual en las 8 semillas; está un caso por encima de la regresión logística, lo que no es una diferencia afirmable.
+- GD, Adam y secuencial: sin diferencias afirmables frente a Adam (≤ 1 caso de test; Wilcoxon ≥ 0,0625; 26 comparaciones sin corregir).
+- SPSA con 100 pasos, fase: −0,0392 frente a Adam (IC [−0,0494, −0,0276], 8/8 semillas, p=0,0078). Con presupuesto común (B4): −0,0160 (p=0,25). En angular: −0,0029.
+- Coste hasta el checkpoint: el secuencial necesita unas 23 veces menos circuitos que Adam en fase (29 850 frente a 691 177) y unas 3,7 veces menos en angular, con la misma accuracy de test. Es una cifra *a posteriori*, que requiere un criterio de parada.
+- Codificación: la angular supera a la de fase en las 13 combinaciones (1,3–6,4 puntos), observación descriptiva.
+- Shots y ruido de sensibilidad: cambian poco la accuracy de test (Adam angular 0,9186 / 0,9099 / 0,9099).
+
+**Desviaciones respecto al pre-registro:**
+
+- El secuencial cuesta 15 920 circuitos por paso, más que GD/Adam (13 134); en B4 se detuvo en el paso 83, con su checkpoint idéntico al de B1.
+- El presupuesto se comprueba tras cada paso, así que el secuencial lo superó en un 0,6 %.
+- SPSA mantuvo `A=6` con 1650 pasos.
+
+**Limitaciones:** un dataset, una partición, 86 casos de test, n = 8, una semilla de ejecución, simulación en CPU y ruido no calibrado. No hay QPU.
+
+**Pendiente:** decidir si la memoria adopta la línea variacional como método principal; si se repite con otra partición o con Iris; si se añade patience al secuencial para medir el ahorro real; y la aceptación del tutor.
+
+## 33. Replicación de la fase B en Iris binario (12 de noviembre de 2026)
+
+**Estado: evaluado en simulación** (línea variacional, no QGD). Pre-registro en `results/variational/B-confirm-iris/README.md`, escrito antes de ejecutar:
+
+- Mismo diseño que la sección 32 sobre Iris setosa/versicolor (partición 70/15/15 con semilla 42, sin PCA).
+- Hiperparámetros transferidos de Breast Cancer sin reajuste.
+- Mismas 8 semillas.
+- Bloques I1–I4; I4 con un presupuesto de 231 000 circuitos.
+
+Las 28 invocaciones (224 entrenamientos) terminaron con `EXIT_CODE=0`; I3 tardó 25–33 min por invocación. **Procedencia:** el código no versionado es idéntico al de la sección 32 (mismos hashes) y no se editó código versionado; el hash del diff (`1916248db836…`) solo difiere por la documentación.
+
+**Resultados** (test con 15 casos, 1 caso = 6,7 puntos; detalle en el README y en `*-analysis.md`):
+
+- Baselines: clase mayoritaria 0,467; regresión logística 1,000.
+- La QCNN obtiene 0,858–1,000. Solo GD angular exacto llega a 1,000 (15/15 en las 8 semillas); el resto queda por debajo de la regresión logística. La pérdida de validation está en 0,27–0,51 en un problema linealmente separable, lo que indica una capacidad de ajuste limitada del modelo.
+- **No se cumplió el efecto techo esperado.**
+- GD angular supera a Adam angular en I1–I3: +0,117 (p = 0,016–0,031; MSE de test 0,28 frente a 0,41) con la misma pérdida de validation (0,3378 frente a 0,3379). No estaba pre-especificado, son 20 comparaciones sin corregir y no se repite en fase; se registra como observación a verificar.
+- El secuencial queda igual o por encima de Adam en todas las condiciones (solo I2 angular con p < 0,05). Llega al checkpoint con unas 12 veces menos circuitos en fase y unas 2,1 veces menos en angular.
+- SPSA es comparable a Adam; el presupuesto común no cambia nada.
+- No hay un patrón consistente entre codificaciones.
+- Contraste cualitativo con M5 Iris (QGD, 0,333–0,467): la línea variacional sí aprende el problema.
+
+**Síntesis con Breast Cancer:**
+
+- En ambos datasets la QCNN supera con claridad a la clase mayoritaria, queda a la altura de la regresión logística o por debajo, y el secuencial es el más eficiente en circuitos.
+- El orden de optimizadores y codificaciones cambia entre datasets. No hay un optimizador consistentemente mejor.
+
+**Limitaciones:** 15 casos de test y 15 de validation; una partición; n = 8; hiperparámetros no ajustados para Iris; simulación; sin QPU.
+
+**Pendiente:** repetir con varias particiones (semillas de dataset) para separar el efecto del optimizador del de la partición; decidir qué línea adopta la memoria; aceptación del tutor.
+
+## 34. Fase C: robustez frente a la partición y patience (12 de noviembre de 2026)
+
+**Estado: evaluado en simulación exacta** (línea variacional, no QGD). Pre-registro y resultados en `results/variational/C-partitions/README.md`; tablas derivadas en `analysis.md`/`analysis.json` (principal, n = 10) y `analysis-with-42.*` (sensibilidad, n = 11).
+
+**Diseño:**
+- Semillas de dataset 1–10, nuevas. Breast Cancer (PCA 4) e Iris binario.
+- 4 optimizadores × 2 codificaciones × 8 semillas de inicialización; simulación exacta; 100 pasos.
+- Hiperparámetros de la fase A, sin reajuste.
+- Unidad de análisis: la partición. Holm por dataset sobre 6 comparaciones frente a Adam; O1–O4 con Holm en bloque.
+- Patience P ∈ {5, 10, 20} reconstruida a posteriori.
+
+**Ejecución y procedencia:**
+- 160/160 invocaciones con `EXIT_CODE=0` (1280 entrenamientos).
+- Las 160 comparten el hash del diff `c1ddf4ac9293…` y el mismo código no versionado que las fases B. El hash solo cambia respecto a Iris B por ediciones de documentación: ningún `.py` se modificó después de las 11:27.
+- `experiments/analyze_partitions.py` y `tests/test_partition_analysis.py` se añadieron después de la ejecución.
+- **Validado:** 24 pruebas OK (`tests.test_partition_analysis`, `tests.test_variational_training` y `tests.test_fast_qcnn`), incluida la equivalencia de la patience reconstruida con ejecuciones reales con `patience=P`.
+- El análisis reproduce las métricas de test almacenadas con error 0.
+- **Desviación:** Holm sobre 7 contrastes (O4 por dataset y codificación) en lugar de los «4» del texto. Las p ajustadas de O1–O3 no cambian.
+
+**Resultados (accuracy de test, media sobre particiones):**
+- **Breast Cancer:**
+  - Angular: 0,904–0,911. Fase: 0,853–0,874.
+  - Logística 0,937 ± 0,018; mayoritaria 0,628.
+- **Iris:**
+  - Angular: 0,881–0,928. Fase: 0,817–0,855.
+  - Logística 1,000 en las 10 particiones; mayoritaria 0,500.
+- **Frente a Adam, ninguna diferencia es significativa tras Holm en ningún dataset.**
+  - Sin corregir, SPSA queda por debajo en Breast Cancer (−0,008 y −0,021; Holm p = 0,094 y 0,098).
+  - En Iris todos los IC cruzan 0. La dispersión entre particiones (sd 0,06–0,14) supera las diferencias entre optimizadores.
+- **O1, GD angular > Adam en Iris: no se replica** (+0,003 [−0,038, 0,040], p = 0,84). Era propia de la partición 42.
+- **O2 y O3 mantienen la dirección pero no son significativas tras Holm:**
+  - O2 (Breast Cancer, SPSA fase < Adam fase): −0,021, Holm p = 0,059.
+  - O3 (Breast Cancer, angular > fase con Adam): +0,037, Holm p = 0,074.
+  - Con la partición 42 (n = 11) quedan en 0,029 y 0,049, pero esa partición sirvió para ajustar los hiperparámetros.
+- **O4 se replica:** el secuencial llega al checkpoint con menos circuitos que Adam en las 40 combinaciones de partición, dataset y codificación (Holm p = 0,014 en los cuatro casos). La razón de medias va de 3,2 a 9,4.
+- **QCNN − regresión logística:** negativa en ambos datasets.
+  - Breast Cancer: −0,026 a −0,084; 0–1 de 10 particiones alcanzan a la logística.
+  - Iris: −0,073 a −0,183.
+  - La partición 42 era favorable a la QCNN en Breast Cancer.
+- **Codificación (descriptivo):** la angular supera en media a la de fase con los cuatro optimizadores en ambos datasets.
+- **Patience:**
+  - Secuencial con P = 10: para con el 14–19 % de sus circuitos de 100 pasos, con una diferencia de accuracy de test entre −0,006 y 0.
+  - Adam con P = 10: pierde hasta 0,032 (Iris angular).
+  - Con la misma regla P = 10, el secuencial consume 1,2–2,2 veces menos circuitos que Adam hasta parar. Es una ventaja menor que la de O4, que mide circuitos hasta el mejor checkpoint.
+
+**Conclusión:**
+- Las diferencias de accuracy entre optimizadores de las fases B dependían de la partición.
+- Lo robusto es:
+  - el ahorro de circuitos del optimizador secuencial;
+  - que la QCNN supera a la clase mayoritaria pero queda por debajo de la regresión logística con las mismas 4 características.
+- La síntesis «a la altura de la logística» de las secciones 32–33 queda sustituida por esta.
+
+**Limitaciones:** las particiones comparten muestras; 15 casos de test en Iris; hiperparámetros ajustados en la partición 42 de Breast Cancer; solo simulación exacta; sin QPU.
+
+**Pendiente:** decidir qué línea adopta la memoria y qué resultados son oficiales (resumen para la tutoría en `docs/tutor-briefing-2026-11-12.md`); aceptación del tutor.

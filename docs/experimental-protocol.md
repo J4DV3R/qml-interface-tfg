@@ -730,3 +730,26 @@ y reales (si se instrumentan), shots totales, semilla del dataset, de
 inicialización y de ejecución, `p_model`, `p_update`, shots, código del modelo
 de ruido, revisión del código y comando. `test` se reservaría para una única
 evaluación final de cada condición confirmatoria.
+
+## Protocolo propuesto: benchmark variacional de optimizadores (12 de noviembre de 2026)
+
+**Estado:** propuesto; el código está implementado y validado unitariamente (log, sección 30), pero no se ha ejecutado ningún experimento. Requiere autorización.
+
+**Pregunta:** con el mismo circuito QCNN de 4 qubits, ¿qué regla de actualización (GD, Adam, SPSA o secuencial tipo Rotosolve/NFT) alcanza mejor pérdida de validation y mejor test, y con qué coste en ejecuciones de circuito, en modo exacto, con shots y con ruido?
+
+**Datos:** Breast Cancer (PCA 4, ajustado solo con train) como dataset principal; Iris binario solo como prueba de humo (es linealmente separable). Partición 70/15/15 con semilla 42. El manifiesto registra las huellas SHA-256 de cada partición.
+
+**Fase A, ajuste (sin test, `--screening`):** semillas de inicialización 101–103 (distintas de las de confirmación); 60 pasos; rejilla pequeña por optimizador: GD `lr ∈ {0.2, 0.5, 1.0}`, Adam `lr ∈ {0.02, 0.05, 0.1}`, SPSA `a ∈ {0.1, 0.2, 0.4}` con `c=0.1`, y secuencial sin tasa. Se elige por la media de la mejor pérdida de validation; la decisión se registra antes de la fase B.
+
+**Fase B, confirmación (test una vez):** semillas 19, 23, 29, 31, 37, 41, 43 y 47 (n = 8); 100 pasos o un presupuesto común de circuitos de optimización (`--max-optimization-circuits`) para comparar con el mismo coste; condiciones: exacto; 1000 shots; 1000 shots con `noise=0.001` y `readout_error=0.02` (sensibilidad, no calibración). Codificaciones angular y fase.
+
+**Análisis:** `experiments/analyze_variational_benchmark.py`. Se reportan media ± sd e IC95 % bootstrap por condición; accuracy, accuracy balanceada, F1 y MSE de test junto a las baselines de clase mayoritaria y de regresión logística; el diagnóstico exacto sin ruido del mismo checkpoint; los circuitos hasta el checkpoint; diferencias pareadas frente a Adam con IC bootstrap y Wilcoxon (n ≥ 6). Un IC que cruza 0 no permite afirmar diferencias. Con n = 8 los resultados siguen siendo exploratorios.
+
+**Comandos de ejemplo (no ejecutados):**
+
+```powershell
+qml_env\Scripts\python.exe -m experiments.run_variational_benchmark --dataset breast-cancer --encodings angle phase --optimizers gd adam spsa sequential --init-seeds 101 102 103 --max-steps 60 --screening --output-dir results/variational/A-tuning-bc-exact
+qml_env\Scripts\python.exe -m experiments.analyze_variational_benchmark results/variational/A-tuning-bc-exact --output results/variational/A-tuning-bc-exact-analysis.md --curves-csv results/variational/A-tuning-bc-exact-curves.csv
+```
+
+**Límites:** simulación local; el ruido es un modelo de sensibilidad (depolarizante local + lectura) y no una calibración de hardware; no hay transpilación. La frontera clásica (pérdida, optimizador, selección) es la del modelo variacional estándar.

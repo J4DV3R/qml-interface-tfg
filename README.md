@@ -47,7 +47,9 @@ constituyen una evaluación de convergencia o rendimiento del método.
   `qml_env\Scripts\python.exe -m unittest discover -s tests -v`; los conteos 73
   y 88 son validaciones históricas anteriores (sección 29 del log). También
   pasaron `qml_env\Scripts\python.exe -m compileall src experiments tests` y
-  `git diff --check`.
+  `git diff --check`. El 12 de noviembre de 2026 la suite de 92 pruebas pasó
+  en `bc877bd` limpio. Tras las correcciones de la auditoría, la suite pasa con
+  124 pruebas en un árbol de trabajo basado en `bc877bd` (sección 30 del log).
 - **Flujo y frontera clásica-cuántica:** sin executor, el primer gradiente se
   obtiene mediante parameter-shift exacto y sin ruido; los gradientes siguientes
   usan shots si se configuraron. En M5, cada actualización se ejecuta como
@@ -134,6 +136,58 @@ sobrescribir archivos existentes; también protege los resultados históricos de
 > finito configurado, lo que altera su magnitud cuando quedan fuera de ese rango.
 > La aprobación del tutor sigue pendiente; esta variante no implica cumplimiento
 > total del plan ni aceptación del término «no híbrido».
+
+## Línea variacional: benchmark de optimizadores (evaluada en simulación, exploratoria)
+
+Modelo de ejecución estándar en hardware actual: el circuito QCNN produce
+valores esperados (exactos o por shots) y un optimizador clásico actualiza los
+pesos. Implementado y validado unitariamente el 12 de noviembre de 2026
+(sección 30 del log). Fase A (ajuste sin test) y fase B (confirmación con 8
+semillas y test una vez, Breast Cancer) ejecutadas el mismo día: ver
+[`results/variational/B-confirm-bc/README.md`](results/variational/B-confirm-bc/README.md)
+y las secciones 31-32 del log. Resultado principal: accuracy de test entre
+0,846 y 0,919 (clase mayoritaria 0,628, regresión logística 0,907), sin
+diferencias afirmables entre GD, Adam y el optimizador secuencial; el
+secuencial llega al checkpoint con muchos menos circuitos. Réplica en Iris
+([`results/variational/B-confirm-iris/README.md`](results/variational/B-confirm-iris/README.md),
+sección 33): 0,858-1,000 de accuracy de test frente a 1,000 de la regresión
+logística; el orden de los optimizadores cambia entre datasets. Ambas fases B
+usan una sola partición (semilla 42).
+
+**Fase C** (pre-registrada; [`results/variational/C-partitions/README.md`](results/variational/C-partitions/README.md),
+sección 34 del log): 10 particiones nuevas por dataset, simulación exacta,
+1280 entrenamientos, análisis por partición con corrección de Holm. Ninguna
+diferencia de accuracy frente a Adam es significativa tras Holm, y GD > Adam
+en Iris no se replica. El optimizador secuencial llega al checkpoint con
+3,2-9,4 veces menos circuitos que Adam en todas las particiones. La QCNN
+supera a la clase mayoritaria, pero queda por debajo de la regresión
+logística en ambos datasets (Breast Cancer 0,853-0,911 frente a 0,937; Iris
+0,817-0,928 frente a 1,000). La partición 42 era favorable a la QCNN. Solo
+simulación, sin QPU.
+
+- [`src/fast_qcnn.py`](src/fast_qcnn.py): simulador NumPy vectorizado del mismo
+  circuito, igual a Qibo con error < 1e-10, con ruido depolarizante local
+  exacto (matriz de densidad), error de lectura y shots independientes.
+- [`src/variational_training.py`](src/variational_training.py): GD, Adam, SPSA
+  y optimizador secuencial tipo Rotosolve/NFT; checkpoint solo por validation
+  (incluido el paso 0).
+- [`experiments/run_variational_benchmark.py`](experiments/run_variational_benchmark.py):
+  varias semillas, `--screening` sin test para el ajuste, test una vez en la
+  confirmación, baselines de clase mayoritaria y logística, y procedencia con
+  hash del diff.
+- [`experiments/analyze_variational_benchmark.py`](experiments/analyze_variational_benchmark.py):
+  media, sd, IC95 % bootstrap, diferencias pareadas y curvas, derivados de los JSON.
+- [`experiments/analyze_partitions.py`](experiments/analyze_partitions.py):
+  análisis por partición (fase C) con Holm, baselines por partición y
+  patience reconstruida del historial.
+
+El protocolo propuesto está al final de
+[`docs/experimental-protocol.md`](docs/experimental-protocol.md).
+
+**Ruido corregido:** el ruido local por defecto se simula ahora exactamente
+(matriz de densidad, shots independientes). El modo
+`legacy_shared_trajectory` reproduce el comportamiento con el que se generaron
+los JSON M5/screens.
 
 ## Prototipo QCNN actual
 

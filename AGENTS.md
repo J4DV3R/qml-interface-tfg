@@ -39,11 +39,39 @@ reunión, una validación ni un resultado.
   `src/quantum_training.py` integra el bucle. `src/circuit_execution.py`
   define el contrato de executor y perfil de recursos; el adaptador disponible
   usa el simulador Qibo, no un proveedor de hardware. El CLI está en
-  `experiments/run_quantum_training.py`. La validación local completa más
-  reciente pasó 92 pruebas el 10 de noviembre de 2026 sobre un árbol de trabajo
-  sucio basado en `164eaee2b05ed53f9950afe8a272ca91f5e292df`; los conteos 73 y
-  88 son validaciones históricas anteriores. Ver sección 29 de
-  `docs/TFG-technical-log.md`.
+  `experiments/run_quantum_training.py`. La suite de 92 pruebas se reejecutó
+  en `bc877bd` limpio el 12 de noviembre de 2026 (OK). La validación más
+  reciente pasó 124 pruebas el 12 de noviembre de 2026 sobre un árbol de
+  trabajo sucio basado en `bc877bd` (correcciones de la auditoría, sección 30
+  del log); 73, 88 y 92 son conteos históricos.
+- **Nueva línea variacional (implementada, validada unitariamente y evaluada
+  en simulación):** `src/fast_qcnn.py` (simulador NumPy vectorizado, idéntico a Qibo
+  con error < 1e-10, ~76 veces más rápido) y `src/variational_training.py`
+  (GD, Adam, SPSA y optimizador secuencial tipo Rotosolve/NFT con gradientes
+  parameter-shift o reconstrucción exacta, checkpoint por validation incluido
+  el paso 0). Runner multi-semilla `experiments/run_variational_benchmark.py`
+  y análisis `experiments/analyze_variational_benchmark.py`. Es el modelo de
+  ejecución estándar en hardware actual (circuito + optimizador clásico).
+  Fase A (ajuste en validation, sin test) en `results/variational/A-tuning-bc-exact/`;
+  fase B (8 semillas, test una vez, exacto/shots/ruido/mismo coste, solo
+  Breast Cancer) en `results/variational/B-confirm-bc/` y réplica en Iris en
+  `results/variational/B-confirm-iris/` (secciones 31-33 del log), sobre la
+  partición 42: Breast Cancer 0,846-0,919 (mayoritaria 0,628, logística
+  0,907); Iris 0,858-1,000 (mayoritaria 0,467, logística 1,000). Fase C
+  (sección 34, `results/variational/C-partitions/`, pre-registrada): 10
+  particiones nuevas por dataset, exacto, 1280 entrenamientos, análisis por
+  partición con Holm (`experiments/analyze_partitions.py`). Resultado:
+  ninguna diferencia de accuracy frente a Adam es significativa tras Holm;
+  GD > Adam en Iris no se replica; el secuencial llega al checkpoint con
+  3,2-9,4 veces menos circuitos (replicado en las 40 combinaciones); la QCNN
+  supera a la mayoritaria pero queda por debajo de la logística en ambos
+  datasets (Breast Cancer −0,026 a −0,084; Iris −0,07 a −0,18). La partición
+  42 era favorable a la QCNN. Solo simulación, sin QPU.
+- **Ruido corregido:** desde el 12 de noviembre de 2026 el ruido por defecto
+  es un canal local exacto (matriz de densidad, `PauliNoiseChannel`) con
+  shots independientes. Los JSON M5/screens se generaron con el modo
+  `legacy_shared_trajectory` (una trayectoria por ejecución compartida por
+  todos los shots); no son estimaciones promediadas de ruido.
 - **Perfiles exploratorios, no evaluación de rendimiento:** hay cinco JSON M5
   de dos pasos y 100 shots: cuatro perfiles Iris (angular/fase, ruido `0` y
   `0.001`) y uno Breast Cancer angular sin ruido, todos con una semilla. No
@@ -56,7 +84,8 @@ reunión, una validación ni un resultado.
   en la sección 28 y el diagnóstico en la sección 29 del log.
 - Frontera actual: sin executor, el primer gradiente usa parameter-shift exacto
   y sin ruido; gradientes posteriores usan shots cuando se configuran y el
-  update Qibo se ejecuta con estado-vector exacto. `--measured-execution`, o un
+  update Qibo se ejecuta como circuito medido con un shot determinista en el
+  simulador local. `--measured-execution`, o un
   ruido solicitado mayor que cero, activa un executor de counts finitos para
   gradientes, predicciones y actualizaciones. El host prepara/decodifica
   registros, procesa counts, calcula pérdidas, acumula gradientes, selecciona
@@ -105,9 +134,17 @@ JSON de resultados y su configuración.
   parameter-shift sin importar PyTorch.
 - `src/quantum_update.py`: actualización aritmética QGD reversible, medida con
   executor o exacta en el simulador sin executor; no equivale al clipping
-  propuesto y su aceptación está pendiente.
+  propuesto y su aceptación está pendiente. `QGDConfig.moving_gradient_codes`
+  detecta configuraciones estáticas; los códigos con desplazamiento cero no se
+  sintetizan.
 - `src/circuit_execution.py`: contrato `CircuitExecutor`, perfil lógico de
-  recursos y adaptador de counts del simulador Qibo; no incluye backend QPU.
+  recursos, adaptador de counts del simulador Qibo y transformación de ruido
+  local con modos `density_matrix`, `per_shot_trajectories` y
+  `legacy_shared_trajectory`; no incluye backend QPU.
+- `src/fast_qcnn.py`: simulador NumPy vectorizado de la QCNN (estado puro y
+  matriz de densidad con ruido local y error de lectura), validado contra Qibo.
+- `src/variational_training.py`: entrenamiento variacional sin PyTorch con
+  GD, Adam, SPSA y optimizador secuencial; checkpoint solo por validation.
 - `src/quantum_training.py`: bucle integrado QGD con ejecución exacta o medida,
   gradientes parameter-shift y selección por validación; postprocesamiento y
   control siguen siendo clásicos.
@@ -125,10 +162,24 @@ JSON de resultados y su configuración.
 - `experiments/run_final_qcnn.py`: batería focalizada de cierre.
 - `experiments/run_quantum_training.py`: CLI para la nueva ruta QGD; ejecutado
   únicamente en los cinco perfiles exploratorios listados en el log técnico.
+- `experiments/compare_qgd_adam.py`: runner pareado Adam–QGD y QGD-only; generó
+  los screens S0/G0/U0.
+- `experiments/run_variational_benchmark.py`: benchmark multi-semilla de la
+  línea variacional (test una sola vez, baselines, procedencia con hash del diff).
+- `experiments/analyze_variational_benchmark.py`: resumen estadístico
+  (media, sd, IC bootstrap, diferencias pareadas, curvas) derivado de los JSON.
+- `experiments/analyze_partitions.py`: análisis por partición de la fase C
+  (Holm, baselines por partición, observaciones O1-O4 y patience reconstruida
+  del historial, con reevaluación exacta del test una vez por regla).
 - `tests/test_qcnn.py`: pruebas unitarias del prototipo.
 - `tests/test_quantum_engine.py`, `tests/test_optimizers.py`,
-  `tests/test_quantum_update.py` y `tests/test_quantum_training.py`: pruebas de
-  componentes e integración QGD.
+  `tests/test_quantum_update.py`, `tests/test_quantum_training.py`,
+  `tests/test_circuit_execution.py` y `tests/test_compare_qgd_adam.py`: pruebas
+  de componentes e integración QGD.
+- `tests/test_fast_qcnn.py` y `tests/test_variational_training.py`: equivalencia
+  con Qibo, optimizadores, runner y análisis de la línea variacional.
+  `tests/test_partition_analysis.py`: equivalencia de la patience
+  reconstruida con entrenamientos reales y Holm.
 - `results/initial-hybrid-adam/`: resultados históricos congelados.
 - `results/reproductions/legacy/`: repeticiones de experimentos antiguos.
 - `results/quantum-training/`: cinco perfiles exploratorios M5 y README; no son
@@ -323,10 +374,17 @@ TFG en cada mensaje.
 - El ruido del modo legacy se aplica tras `RY`, `RZ` y `CNOT`. El modo de
   sensibilidad M5 aplica canales depolarizantes locales tras puertas lógicas a
   qubits tocados; ninguno incluye ruido de medición, amplitude damping ni phase
-  damping, y el perfil `p=0.001` no es una calibración de hardware. En Qibo
-  0.1.11 el canal se muestrea una vez por ejecución del circuito, no por shot;
-  los shots comparten la misma trayectoria de Pauli y no promedian realizaciones
-  de ruido. Una `mode_probability=1.0` no demuestra ausencia de ruido.
+  damping, y el perfil `p=0.001` no es una calibración de hardware. Con el modo
+  `legacy_shared_trajectory` (usado en M5/screens y en los históricos) Qibo
+  0.1.11 muestrea el canal una vez por ejecución del circuito, no por shot; los
+  shots comparten la misma trayectoria de Pauli y no promedian realizaciones de
+  ruido. Una `mode_probability=1.0` no demuestra ausencia de ruido. El modo por
+  defecto desde el 12-nov-2026 (`density_matrix`) es exacto; Qibo 0.1.11 tiene
+  además dos defectos documentados en la sección 30 del log
+  (`DepolarizingChannel` en matriz de densidad despolariza todo el registro, y la
+  ejecución repetida con medidas reutiliza la muestra del primer shot), que el
+  código evita. La línea variacional modela además un error de lectura
+  simétrico opcional; no hay amplitude ni phase damping.
 - La simulación es local en CPU y no representa hardware cuántico real.
 - Los resultados históricos usan pocas semillas y un único test; no permiten
   afirmaciones fuertes de significación.
@@ -334,7 +392,8 @@ TFG en cada mensaje.
   perfiles exploratorios de dos pasos y screens parciales; no hay evaluación de
   convergencia o rendimiento ni ejecución en hardware. Con `b=5/lr=0.1`,
   `weight=[-π,π]` y `grad=[-1,1]`, el delta entero es cero para los 32 códigos
-  de gradiente y los pesos solo se cuantizan. U0 tiene tres fallos y una sola
+  de gradiente y los pesos solo se cuantizan; los runners avisan ahora de las
+  configuraciones estáticas y las registran en el JSON. U0 tiene tres fallos y una sola
   ejecución válida. La actualización modular difiere del clipping propuesto y la
   aceptación del tutor sigue pendiente.
 - La API pública `load_binary_iris()` fue eliminada de `src/datasets.py` en el
