@@ -17,6 +17,52 @@ from src.qcnn_engine import QCNNConfig, build_qcnn_circuit, predict
 from src.quantum_update import QGDConfig, build_update_circuit, encode_gradient, encode_weight
 
 
+class NoiseSamplingSemanticsTests(unittest.TestCase):
+    """The corrected modes draw independent noise per shot; legacy does not."""
+
+    @staticmethod
+    def _flip_counts(simulation: str, seed: int) -> dict:
+        circuit = Circuit(1)
+        circuit.add(gates.X(0))
+        circuit.add(gates.M(0))
+        # Bit-flip probability of a depolarizing channel with p=0.6 is 0.3.
+        executor = QiboSimulatorExecutor(
+            noise_transform=qibo_local_depolarizing_sensitivity_transform(
+                0.6, gate_names=("X",), simulation=simulation
+            )
+        )
+        return executor.execute_counts(circuit, shots=400, seed=seed)
+
+    def test_corrected_modes_sample_noise_independently_per_shot(self):
+        for simulation in ("density_matrix", "per_shot_trajectories"):
+            counts = self._flip_counts(simulation, seed=3)
+            with self.subTest(simulation=simulation):
+                self.assertEqual(set(counts), {"0", "1"})
+                self.assertAlmostEqual(counts.get("0", 0) / 400, 0.3, delta=0.08)
+
+    def test_legacy_mode_shares_one_trajectory_across_shots(self):
+        for seed in range(5):
+            counts = self._flip_counts("legacy_shared_trajectory", seed=seed)
+            self.assertEqual(len(counts), 1)
+
+    def test_density_matrix_channel_is_local_to_its_target_qubit(self):
+        circuit = Circuit(2)
+        circuit.add(gates.X(1))
+        circuit.add(gates.H(0))
+        circuit.add(gates.M(1))
+        counts = QiboSimulatorExecutor(
+            noise_transform=qibo_local_depolarizing_sensitivity_transform(
+                1.0, gate_names=("H",)
+            )
+        ).execute_counts(circuit, shots=200, seed=1)
+        # Full depolarizing on qubit 0 must not touch qubit 1.
+        self.assertEqual(counts, {"1": 200})
+
+    def test_invalid_simulation_mode_is_rejected(self):
+        with self.assertRaises(ValueError):
+            qibo_local_depolarizing_sensitivity_transform(0.1, simulation="bogus")
+
+
 class CircuitExecutionTests(unittest.TestCase):
     def test_resource_profile_checks_declared_qubit_and_shot_limits(self):
         profile = ResourceProfile(
@@ -137,7 +183,7 @@ class CircuitExecutionTests(unittest.TestCase):
         self.assertEqual(len(noisy_circuits), 2)
         self.assertTrue(
             all(
-                any(gate.name == "DepolarizingChannel" for gate in circuit.queue)
+                any(gate.name == "PauliNoiseChannel" for gate in circuit.queue)
                 for circuit in noisy_circuits
             )
         )
@@ -146,7 +192,7 @@ class CircuitExecutionTests(unittest.TestCase):
             any(
                 len(gate.qubits) >= 3
                 and any(
-                    following.name == "DepolarizingChannel"
+                    following.name == "PauliNoiseChannel"
                     for following in arithmetic_noisy.queue[index + 1 : index + 2]
                 )
                 for index, gate in enumerate(arithmetic_noisy.queue)
@@ -172,18 +218,18 @@ class CircuitExecutionTests(unittest.TestCase):
             names,
             [
                 "ry",
-                "DepolarizingChannel",
+                "PauliNoiseChannel",
                 "rz",
-                "DepolarizingChannel",
+                "PauliNoiseChannel",
                 "cx",
-                "DepolarizingChannel",
-                "DepolarizingChannel",
+                "PauliNoiseChannel",
+                "PauliNoiseChannel",
                 "h",
                 "x",
                 "measure",
             ],
         )
-        channels = [gate for gate in queue if gate.name == "DepolarizingChannel"]
+        channels = [gate for gate in queue if gate.name == "PauliNoiseChannel"]
         self.assertEqual([gate.qubits for gate in channels], [(0,), (1,), (0,), (2,)])
         self.assertEqual(len(transformed.measurements), 1)
 
@@ -219,7 +265,7 @@ class CircuitExecutionTests(unittest.TestCase):
                 if gate.name in {"ry", "rz", "cx"}:
                     for qubit in gate.qubits:
                         channel = transformed.queue[transformed_index]
-                        self.assertEqual(channel.name, "DepolarizingChannel")
+                        self.assertEqual(channel.name, "PauliNoiseChannel")
                         self.assertEqual(channel.qubits, (qubit,))
                         transformed_index += 1
             self.assertEqual(transformed_index, len(transformed.queue))

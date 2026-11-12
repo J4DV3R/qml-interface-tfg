@@ -304,7 +304,7 @@ class CompareQgdAdamTests(unittest.TestCase):
             model_channels = [
                 index
                 for index, gate in enumerate(transformed_model.queue)
-                if gate.name == "DepolarizingChannel"
+                if gate.name == "PauliNoiseChannel"
             ]
             self.assertEqual(
                 len(model_channels),
@@ -321,7 +321,7 @@ class CompareQgdAdamTests(unittest.TestCase):
             update_channels = [
                 index
                 for index, gate in enumerate(transformed_update.queue)
-                if gate.name == "DepolarizingChannel"
+                if gate.name == "PauliNoiseChannel"
             ]
             self.assertEqual(
                 len(update_channels),

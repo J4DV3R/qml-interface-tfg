@@ -25,6 +25,7 @@ if __package__:
     from .circuit_execution import (
         CircuitExecutor,
         QiboSimulatorExecutor,
+        qibo_local_depolarizing_sensitivity_transform,
         validate_counts,
     )
     from .data_encoding import add_angle_encoding, add_phase_encoding
@@ -35,6 +36,7 @@ else:
     from circuit_execution import (
         CircuitExecutor,
         QiboSimulatorExecutor,
+        qibo_local_depolarizing_sensitivity_transform,
         validate_counts,
     )
     from data_encoding import add_angle_encoding, add_phase_encoding
@@ -97,14 +99,28 @@ def expectation_z(state: np.ndarray, n_qubits: int, qubit: int) -> float:
     most significant bit; hence its bit position is ``n_qubits - 1 - qubit``.
     """
     probabilities = np.abs(np.asarray(state).reshape(-1)) ** 2
+    return expectation_z_from_probabilities(probabilities, n_qubits, qubit)
+
+
+def expectation_z_from_probabilities(probabilities, n_qubits: int, qubit: int) -> float:
+    """Pauli-Z expectation of ``qubit`` from computational-basis probabilities."""
+    probabilities = np.asarray(probabilities, dtype=float).reshape(-1)
     basis_states = np.arange(probabilities.size)
     bit_position = n_qubits - 1 - qubit
     signs = 1.0 - 2.0 * ((basis_states >> bit_position) & 1)
     return float(np.dot(probabilities, signs).real)
 
 
+QCNN_NOISE_GATE_NAMES = ("RY", "RZ", "CNOT")
+
+
 def depolarizing_noise_model(probability: float) -> NoiseModel:
-    """Build the depolarizing noise model applied after RY, RZ and CNOT."""
+    """Build the legacy depolarizing noise model applied after RY, RZ and CNOT.
+
+    Kept for ``noise_simulation="legacy_shared_trajectory"`` only. Qibo
+    0.1.11 samples this model once per circuit execution (shared by all
+    shots) and applies a two-qubit channel after CNOT.
+    """
     noise_model = NoiseModel()
     error = DepolarizingError(probability)
     for gate in (gates.RY, gates.RZ, gates.CNOT):
@@ -188,12 +204,32 @@ def _execute_expectations(
 ) -> np.ndarray:
     execution = config.execution
     if execution.shots is None:
-        if execution.noisy:
-            raise ValueError("noise requires a positive shots value.")
         if config.executor is not None:
             raise ValueError(
                 "an injected measured-circuit executor requires positive shots; "
                 "shots=None is reserved for exact local simulation."
+            )
+        if execution.noisy:
+            if execution.noise_simulation != "density_matrix":
+                raise ValueError(
+                    "exact noisy expectations require noise_simulation="
+                    "'density_matrix'; trajectory modes need a positive shots value."
+                )
+            noisy = qibo_local_depolarizing_sensitivity_transform(
+                execution.depolarizing_probability,
+                gate_names=QCNN_NOISE_GATE_NAMES,
+                simulation="density_matrix",
+            )(circuit)
+            rho = np.asarray(noisy.execute().state())
+            probabilities = np.real(np.diagonal(rho))
+            return np.asarray(
+                [
+                    expectation_z_from_probabilities(
+                        probabilities, config.n_qubits, qubit
+                    )
+                    for qubit in active_qubits
+                ],
+                dtype=float,
             )
         state = circuit.execute().state()
         return np.asarray(
@@ -209,10 +245,18 @@ def _execute_expectations(
     if executor is None:
         noise_transform = None
         if execution.noisy:
-            noise_model = depolarizing_noise_model(
-                execution.depolarizing_probability
-            )
-            noise_transform = noise_model.apply
+            if execution.noise_simulation == "legacy_shared_trajectory":
+                # Historical behavior: Qibo NoiseModel, one shared trajectory.
+                noise_model = depolarizing_noise_model(
+                    execution.depolarizing_probability
+                )
+                noise_transform = noise_model.apply
+            else:
+                noise_transform = qibo_local_depolarizing_sensitivity_transform(
+                    execution.depolarizing_probability,
+                    gate_names=QCNN_NOISE_GATE_NAMES,
+                    simulation=execution.noise_simulation,
+                )
         executor = QiboSimulatorExecutor(noise_transform=noise_transform)
     elif execution.noisy:
         raise ValueError(

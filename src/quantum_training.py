@@ -24,6 +24,7 @@ import copy
 import math
 import time
 from typing import Any
+import warnings
 
 import numpy as np
 
@@ -457,6 +458,14 @@ def train_quantum_qcnn(
             "configure noise through the injected executor and set the built-in "
             "depolarizing_probability to zero."
         )
+    if qgd_config.is_static:
+        warnings.warn(
+            "QGD configuration is static: every gradient code has a zero weight "
+            "shift, so weights are only quantized and never move "
+            f"(n_bits={qgd_config.n_bits}, learning_rate={qgd_config.learning_rate}).",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
     train_x, train_y = _validate_partition(
         train_features,
@@ -577,6 +586,14 @@ def train_quantum_qcnn(
             "validation_loss": validation_loss,
             "validation_metrics": validation_metrics,
             "gradient_mode": gradient_mode,
+            "gradient": gradient.reshape(-1).tolist(),
+            "gradient_saturated_fraction": float(
+                np.mean(
+                    (gradient < qgd_config.gradient_min)
+                    | (gradient > qgd_config.gradient_max)
+                )
+            ),
+            "weights_after_update": weights.reshape(-1).tolist(),
             "gradient_execution_seed": gradient_seed,
             "gradient_shots": gradient_shots,
             "update_execution_seed": update_seed,

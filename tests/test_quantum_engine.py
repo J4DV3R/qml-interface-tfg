@@ -270,16 +270,32 @@ class EngineValidationTests(unittest.TestCase):
                 self.config,
             )
 
-    def test_noise_without_shots_raises(self):
-        config = QCNNConfig(
-            4,
-            execution=ExecutionConfig(depolarizing_probability=0.1),
+    def test_trajectory_noise_without_shots_raises(self):
+        for simulation in ("legacy_shared_trajectory", "per_shot_trajectories"):
+            config = QCNNConfig(
+                4,
+                execution=ExecutionConfig(
+                    depolarizing_probability=0.1, noise_simulation=simulation
+                ),
+            )
+            with self.assertRaisesRegex(ValueError, "positive shots value"):
+                predict(self.weights, self.features, config)
+
+    def test_exact_density_matrix_noise_contracts_expectations(self):
+        exact = predict(self.weights, self.features, QCNNConfig(4))
+        noisy = predict(
+            self.weights,
+            self.features,
+            QCNNConfig(4, execution=ExecutionConfig(depolarizing_probability=0.2)),
         )
-        with self.assertRaisesRegex(
-            ValueError,
-            "noise requires a positive shots value",
-        ):
-            predict(self.weights, self.features, config)
+        self.assertTrue(np.all(np.isfinite(noisy)))
+        self.assertFalse(np.allclose(noisy, exact))
+        fully_mixed = predict(
+            self.weights,
+            self.features,
+            QCNNConfig(4, execution=ExecutionConfig(depolarizing_probability=1.0)),
+        )
+        np.testing.assert_allclose(fully_mixed, 0.0, atol=1e-12)
 
     def test_sampled_noisy_execution_is_finite_and_bounded(self):
         config = QCNNConfig(

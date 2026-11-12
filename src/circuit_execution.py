@@ -193,22 +193,61 @@ def validate_counts(
     return normalized
 
 
+NOISE_SIMULATION_MODES = (
+    "density_matrix",
+    "per_shot_trajectories",
+    "legacy_shared_trajectory",
+)
+
+
+def _local_depolarizing_channel(qubit: int, probability: float, simulation: str):
+    """Return one single-qubit depolarizing channel for the chosen simulation.
+
+    ``rho -> (1 - p) rho + p I/2`` equals a Pauli channel with
+    ``px = py = pz = p / 4``. Qibo 0.1.11's ``DepolarizingChannel`` is not used
+    for the corrected modes: in density-matrix mode it depolarizes the whole
+    register instead of its target qubit, and in state-vector mode it samples
+    one trajectory per circuit execution that all shots share.
+    """
+    from qibo import gates
+
+    if simulation == "legacy_shared_trajectory":
+        return gates.DepolarizingChannel((qubit,), lam=probability)
+    quarter = probability / 4.0
+    return gates.PauliNoiseChannel(qubit, px=quarter, py=quarter, pz=quarter)
+
+
 def qibo_local_depolarizing_sensitivity_transform(
     probability: float,
     *,
     gate_names: Collection[str] | None = None,
+    simulation: str = "density_matrix",
 ) -> Callable[[Any], Any]:
     """Create a simulator-only local depolarizing sensitivity transform.
 
     By default, after each non-measurement logical gate, an independent
-    one-qubit Qibo depolarizing channel is added to every qubit touched by that
-    gate. This legacy-compatible default also covers controlled-X instructions
-    without asking Qibo to construct a high-arity depolarizing channel. When
-    ``gate_names`` is supplied, only gates whose Qibo ``name`` is in that set
-    receive channels (for example, ``{"RY", "RZ", "CNOT"}`` for the shared
-    QCNN sensitivity convention). Measurements and existing channels are never
+    one-qubit depolarizing channel is added to every qubit touched by that
+    gate. This default also covers controlled-X instructions without asking
+    Qibo to construct a high-arity depolarizing channel. When ``gate_names``
+    is supplied, only gates whose Qibo ``name`` is in that set receive
+    channels (for example, ``{"RY", "RZ", "CNOT"}`` for the shared QCNN
+    sensitivity convention). Measurements and existing channels are never
     transformed. This is a simulator sensitivity model, not a calibration or
     physically complete hardware noise model.
+
+    ``simulation`` selects how the channel is simulated:
+
+    * ``"density_matrix"`` (default): exact mixed-state evolution; measured
+      shots are independent samples of the noisy output distribution.
+      Recommended for the 4-qubit QCNN.
+    * ``"per_shot_trajectories"``: state-vector Pauli trajectories that Qibo
+      re-executes once per shot (one independent noise realization per shot).
+      Slower per shot but avoids a ``4**n`` density matrix; intended for the
+      10-qubit QGD update circuits.
+    * ``"legacy_shared_trajectory"``: the behavior used to produce the
+      November 2026 M5/screen JSON files. Qibo samples one Pauli trajectory per
+      circuit execution and every shot shares it. Kept only to reproduce those
+      historical results; do not use it for new noise estimates.
     """
     if (
         isinstance(probability, bool)
@@ -217,6 +256,9 @@ def qibo_local_depolarizing_sensitivity_transform(
         or not 0.0 <= probability <= 1.0
     ):
         raise ValueError("probability must be finite and between 0 and 1.")
+    if simulation not in NOISE_SIMULATION_MODES:
+        allowed = ", ".join(NOISE_SIMULATION_MODES)
+        raise ValueError(f"simulation must be one of: {allowed}.")
 
     selected_gate_names = None
     if gate_names is not None:
@@ -235,16 +277,16 @@ def qibo_local_depolarizing_sensitivity_transform(
             for name in names
         )
 
-    from qibo import gates
     from qibo.models import Circuit
 
     probability = float(probability)
+    density_matrix = simulation == "density_matrix"
 
     def transform(circuit):
         n_qubits = getattr(circuit, "nqubits", None)
         if not isinstance(n_qubits, int) or n_qubits < 1:
             raise TypeError("sensitivity transform requires a Qibo circuit.")
-        noisy_circuit = Circuit(n_qubits)
+        noisy_circuit = Circuit(n_qubits, density_matrix=density_matrix)
         for gate in circuit.queue:
             noisy_circuit.add(gate)
             gate_name = str(getattr(gate, "name", "")).lower()
@@ -254,13 +296,60 @@ def qibo_local_depolarizing_sensitivity_transform(
                 gate_name = "cx"
             if selected_gate_names is not None and gate_name not in selected_gate_names:
                 continue
+            if probability == 0.0 and simulation != "legacy_shared_trajectory":
+                # A zero-probability Pauli channel is invalid in Qibo and a no-op.
+                continue
             for qubit in dict.fromkeys(getattr(gate, "qubits", ())):
                 noisy_circuit.add(
-                    gates.DepolarizingChannel((qubit,), lam=probability)
+                    _local_depolarizing_channel(qubit, probability, simulation)
                 )
         return noisy_circuit
 
+    transform.simulation = simulation
+    transform.probability = probability
     return transform
+
+
+def _execute_per_shot_trajectories(circuit, shots: int) -> dict[str, int]:
+    """Sample one independent Pauli trajectory per shot.
+
+    Qibo 0.1.11 re-executes circuits containing unitary channels once per
+    shot, but when measurement gates are present it reuses the first shot's
+    sample for every shot. The trajectories are therefore executed without
+    measurement gates and each final state is sampled here (NumPy global RNG,
+    seeded by the caller).
+    """
+    from qibo.models import Circuit
+
+    measured_qubits = [
+        qubit for gate in circuit.measurements for qubit in gate.target_qubits
+    ]
+    unmeasured = Circuit(circuit.nqubits)
+    for gate in circuit.queue:
+        if str(getattr(gate, "name", "")).lower() != "measure":
+            unmeasured.add(gate)
+    states = unmeasured.execute(nshots=shots)
+    if not isinstance(states, list):  # no channel: a single deterministic state
+        states = [states] * shots
+    n_qubits = circuit.nqubits
+    counts: dict[str, int] = {}
+    for state in states:
+        amplitudes = np.asarray(
+            state.state() if hasattr(state, "state") else state
+        ).reshape(-1)
+        probabilities = np.abs(amplitudes) ** 2
+        probabilities = probabilities / probabilities.sum()
+        index = int(np.random.choice(probabilities.size, p=probabilities))
+        bits = format(index, f"0{n_qubits}b")
+        key = "".join(bits[qubit] for qubit in measured_qubits)
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def _uses_per_shot_trajectories(circuit) -> bool:
+    return bool(getattr(circuit, "repeated_execution", False)) and not bool(
+        getattr(circuit, "density_matrix", False)
+    )
 
 
 def _measured_qubit_count(circuit) -> int:
@@ -329,18 +418,22 @@ class QiboSimulatorExecutor:
                 raise ValueError(
                     "noise_transform must preserve the circuit register and measured qubits."
                 )
-        if seed is None:
+        def _run():
+            if _uses_per_shot_trajectories(executable):
+                return _execute_per_shot_trajectories(executable, shots)
             result = executable.execute(nshots=shots)
-            counts = result.frequencies(binary=True)
+            # Qibo may defer sampling until frequencies() is requested.
+            return result.frequencies(binary=True)
+
+        if seed is None:
+            counts = _run()
         else:
             # Qibo's sampling uses NumPy's global RNG. Preserve caller state so a
             # seeded execution is reproducible without perturbing other code.
             random_state = np.random.get_state()
             try:
                 np.random.seed(int(seed))
-                result = executable.execute(nshots=shots)
-                # Qibo may defer sampling until frequencies() is requested.
-                counts = result.frequencies(binary=True)
+                counts = _run()
             finally:
                 np.random.set_state(random_state)
         return validate_counts(
@@ -349,6 +442,7 @@ class QiboSimulatorExecutor:
 
 
 __all__ = [
+    "NOISE_SIMULATION_MODES",
     "BackendCapabilities",
     "CircuitExecutor",
     "QiboSimulatorExecutor",

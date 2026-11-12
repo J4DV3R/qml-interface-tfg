@@ -390,5 +390,74 @@ class MeasuredUpdateCountsTests(unittest.TestCase):
                 self.assertEqual(len(executor.requests), 1)
 
 
+class NonStaticArithmeticTests(unittest.TestCase):
+    """Exercise the subtractor with configurations that really move weights.
+
+    The earlier equivalence tests used configurations whose integer shift is
+    zero for every gradient code, so they only compared identity maps.
+    """
+
+    MOVING_CONFIGS = ((2, 2.0), (3, 1.0), (3, 0.5), (4, 0.5), (4, 1.3))
+
+    def test_static_configurations_are_detected(self):
+        self.assertTrue(QGDConfig(n_bits=5, learning_rate=0.1).is_static)
+        self.assertEqual(QGDConfig(n_bits=5, learning_rate=0.1).moving_gradient_codes, 0)
+        self.assertEqual(QGDConfig(n_bits=5, learning_rate=0.15).moving_gradient_codes, 12)
+        self.assertEqual(QGDConfig(n_bits=5, learning_rate=0.2).moving_gradient_codes, 16)
+        self.assertEqual(QGDConfig(n_bits=4, learning_rate=0.5).moving_gradient_codes, 10)
+
+    def test_zero_shift_codes_are_not_synthesized(self):
+        static = build_qgd_update_circuit(
+            QGDConfig(n_bits=5, learning_rate=0.1), measure=False
+        )
+        self.assertEqual(len(static.queue), 0)
+        report = estimate_update_resources(
+            QGDConfig(n_bits=5, learning_rate=0.1), n_weights=1, shots=1
+        )
+        self.assertTrue(report["static_update"])
+        self.assertEqual(report["moving_gradient_codes"], 0)
+
+    def test_every_basis_input_matches_reference_for_moving_configs(self):
+        for bits, learning_rate in self.MOVING_CONFIGS:
+            config = QGDConfig(n_bits=bits, learning_rate=learning_rate)
+            self.assertGreater(config.moving_gradient_codes, 0)
+            moved = 0
+            for gradient_code in range(config.n_levels):
+                for weight_code in range(config.n_levels):
+                    counts = (
+                        build_update_circuit(weight_code, gradient_code, config)
+                        .execute(nshots=1)
+                        .frequencies(binary=True)
+                    )
+                    decoded, _ = decode_update_counts(
+                        counts,
+                        config,
+                        shots=1,
+                        expected_gradient_code=gradient_code,
+                    )
+                    expected = classical_grid_update(
+                        [decode_weight(weight_code, config)],
+                        [decode_gradient(gradient_code, config)],
+                        config,
+                    )[0]
+                    with self.subTest(bits=bits, lr=learning_rate, w=weight_code, g=gradient_code):
+                        self.assertEqual(decoded, expected)
+                    moved += decoded != decode_weight(weight_code, config)
+            self.assertGreater(moved, 0)
+
+    def test_vector_update_moves_weights_like_reference(self):
+        config = QGDConfig(n_bits=4, learning_rate=1.3)
+        rng = np.random.default_rng(5)
+        weights = rng.uniform(-np.pi, np.pi, 6)
+        gradients = rng.uniform(-1.0, 1.0, 6)
+        expected = classical_grid_update(weights, gradients, config)
+        actual = quantum_update_step(weights, gradients, config)
+        np.testing.assert_array_equal(actual, expected)
+        quantized = np.array(
+            [decode_weight(encode_weight(value, config), config) for value in weights]
+        )
+        self.assertFalse(np.array_equal(actual, quantized))
+
+
 if __name__ == "__main__":
     unittest.main()

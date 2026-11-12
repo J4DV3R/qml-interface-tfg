@@ -296,6 +296,42 @@ class QuantumTrainingTests(unittest.TestCase):
         self.assertNotIn("test_features", inspect.signature(train_quantum_qcnn).parameters)
         self.assertNotIn("test_targets", inspect.signature(train_quantum_qcnn).parameters)
 
+    def test_moving_configuration_updates_weights_through_the_loop(self):
+        from src.quantum_update import classical_grid_update
+
+        moving = QGDConfig(n_bits=2, learning_rate=2.0)
+        initial = np.array([[0.4, -2.5, 1.3, 2.9]])
+        exact_gradient = np.array([[0.9, -0.95, 0.05, 1.5]])
+        with patch(
+            "src.quantum_training.parameter_shift_gradient",
+            return_value=exact_gradient,
+        ):
+            result = train_quantum_qcnn(
+                self.features,
+                self.targets,
+                self.validation_features,
+                self.validation_targets,
+                initial,
+                self.model_config,
+                moving,
+                QuantumTrainingConfig(max_steps=1, shots=None),
+            )
+        expected = classical_grid_update(
+            initial.reshape(-1), exact_gradient.reshape(-1), moving
+        ).reshape(initial.shape)
+        np.testing.assert_array_equal(result.final_weights, expected)
+        quantized = classical_grid_update(
+            initial.reshape(-1), np.zeros(4), QGDConfig(n_bits=2, learning_rate=1e-9)
+        ).reshape(initial.shape)
+        self.assertFalse(np.array_equal(result.final_weights, quantized))
+        record = result.history[0]
+        self.assertEqual(record["gradient"], exact_gradient.reshape(-1).tolist())
+        self.assertAlmostEqual(record["gradient_saturated_fraction"], 0.25)
+
+    def test_static_configuration_emits_a_warning(self):
+        with self.assertWarnsRegex(RuntimeWarning, "static"):
+            self._train(training_config=QuantumTrainingConfig(max_steps=1, shots=None))
+
     def test_reproducibility_and_separate_initialization_execution_seeds(self):
         first_initial = initialize_weights(2, seed=19)
         other_initial = initialize_weights(2, seed=20)
@@ -565,7 +601,7 @@ class QuantumTrainingTests(unittest.TestCase):
                     events = []
                     selected_executor = []
 
-                    def fake_train(*args):
+                    def fake_train(*args, **kwargs):
                         events.append("train")
                         model = args[5]
                         training_config = args[7]

@@ -516,6 +516,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default=100,
         help="finite shots or 'exact' (exact mode requires p_model=p_update=0)",
     )
+    parser.add_argument(
+        "--noise-simulation",
+        choices=("exact-channel", "legacy-shared-trajectory"),
+        default="exact-channel",
+        help=(
+            "exact-channel (default): density matrix for QCNN circuits and one "
+            "Pauli trajectory per shot for QGD update circuits; "
+            "legacy-shared-trajectory reproduces the November 2026 screens"
+        ),
+    )
     parser.add_argument("--p-model", type=float, default=0.0)
     parser.add_argument("--p-update", type=float, default=0.0)
     parser.add_argument(
@@ -606,6 +616,8 @@ def build_result_payload(
     method_configuration = {
         "qgd": {
             **asdict(qgd_config),
+            "moving_gradient_codes": qgd_config.moving_gradient_codes,
+            "static_update": qgd_config.is_static,
             "finite_register_semantics": (
                 "modular weight-grid subtraction; out-of-range gradients saturate; "
                 "not weight clipping"
@@ -736,15 +748,26 @@ def main(argv: list[str] | None = None) -> int:
         epochs = _effective_epochs(args)
         output_path = _resolve_new_output_path(args.output)
         # Construction validates the probabilities before any dataset is loaded.
+        legacy_noise = args.noise_simulation == "legacy-shared-trajectory"
+        model_noise_simulation = (
+            "legacy_shared_trajectory" if legacy_noise else "density_matrix"
+        )
+        update_noise_simulation = (
+            "legacy_shared_trajectory" if legacy_noise else "per_shot_trajectories"
+        )
         model_transform = (
             qibo_local_depolarizing_sensitivity_transform(
-                args.p_model, gate_names=QCNN_NOISE_GATES
+                args.p_model,
+                gate_names=QCNN_NOISE_GATES,
+                simulation=model_noise_simulation,
             )
             if args.p_model != 0.0
             else None
         )
         update_transform = (
-            qibo_local_depolarizing_sensitivity_transform(args.p_update)
+            qibo_local_depolarizing_sensitivity_transform(
+                args.p_update, simulation=update_noise_simulation
+            )
             if args.p_update != 0.0
             else None
         )
@@ -752,6 +775,13 @@ def main(argv: list[str] | None = None) -> int:
             n_bits=args.qgd_bits,
             learning_rate=args.qgd_learning_rate,
         )
+        if qgd_config.is_static:
+            print(
+                "WARNING: static QGD configuration "
+                f"(n_bits={qgd_config.n_bits}, learning_rate={qgd_config.learning_rate}): "
+                "0 gradient codes move a weight; QGD only quantizes the weights.",
+                file=sys.stderr,
+            )
         if not args.qgd_only and (
             not math.isfinite(args.adam_learning_rate)
             or args.adam_learning_rate <= 0
@@ -953,6 +983,10 @@ def main(argv: list[str] | None = None) -> int:
         screening=args.screening,
         qgd_only=args.qgd_only,
     )
+    payload["model"]["noise"]["simulation"] = {
+        "p_model": model_noise_simulation if args.p_model else None,
+        "p_update": update_noise_simulation if args.p_update else None,
+    }
     serialized = json.dumps(payload, indent=2, allow_nan=False) + "\n"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     try:

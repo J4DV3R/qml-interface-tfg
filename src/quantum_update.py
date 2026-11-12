@@ -68,6 +68,22 @@ class QGDConfig:
     def n_levels(self) -> int:
         return 1 << self.n_bits
 
+    @property
+    def moving_gradient_codes(self) -> int:
+        """Number of gradient codes whose integer weight shift is non-zero.
+
+        Zero means the configuration is a static update: after the first
+        quantization no weight can ever move (e.g. ``n_bits=5``,
+        ``learning_rate=0.1`` on ``[-pi, pi]`` and ``[-1, 1]``).
+        """
+        return sum(
+            _delta_for_gradient_code(code, self) != 0 for code in range(self.n_levels)
+        )
+
+    @property
+    def is_static(self) -> bool:
+        return self.moving_gradient_codes == 0
+
 
 def _encode(value, minimum, maximum, config):
     value = float(value)
@@ -163,6 +179,11 @@ def _append_arithmetic_update(circuit: Circuit, config: QGDConfig) -> None:
     gradient_qubits = [2 * bits - 1 - bit for bit in range(bits)]
 
     for gradient_code in range(config.n_levels):
+        delta = _delta_for_gradient_code(gradient_code, config)
+        if delta == 0:
+            # Nothing to subtract: emitting the X-conjugation of the control
+            # word would add idle gates (and noise exposure) with no effect.
+            continue
         # Turn the selected gradient value into the all-ones control word.
         zero_gradient_qubits = [
             gradient_qubits[bit]
@@ -172,7 +193,6 @@ def _append_arithmetic_update(circuit: Circuit, config: QGDConfig) -> None:
         for qubit in zero_gradient_qubits:
             circuit.add(gates.X(qubit))
 
-        delta = _delta_for_gradient_code(gradient_code, config)
         for start_bit in range(bits):
             if not ((delta >> start_bit) & 1):
                 continue
@@ -407,16 +427,24 @@ def estimate_update_resources(
         raise ValueError("n_weights must be a positive integer.")
     if not isinstance(shots, int) or isinstance(shots, bool) or shots < 1:
         raise ValueError("shots must be a positive integer.")
-    arithmetic_instructions = len(build_qgd_update_circuit(config, measure=False).queue)
+    arithmetic_circuit = build_qgd_update_circuit(config, measure=False)
+    arithmetic_instructions = len(arithmetic_circuit.queue)
     # At most one input X per qubit; the generic arithmetic circuit includes
     # the final measurement instruction when requested.
     instruction_upper_bound = arithmetic_instructions + 2 * config.n_bits + 1
+    max_gate_width = max((len(gate.qubits) for gate in arithmetic_circuit.queue), default=0)
     result = {
         "resource_estimate_scope": (
             "Untranspiled Qibo logical instructions; serial depth upper bound. "
-            "Excludes backend routing/decomposition, calibration, queueing, and "
-            "provider-specific overhead."
+            "Gradient codes with a zero weight shift are not synthesized. "
+            "A multi-controlled X counts as one instruction although hardware "
+            "needs a multi-gate decomposition. Excludes backend "
+            "routing/decomposition, calibration, queueing, and provider-specific "
+            "overhead."
         ),
+        "moving_gradient_codes": config.moving_gradient_codes,
+        "static_update": config.is_static,
+        "max_qubits_per_arithmetic_gate": max_gate_width,
         "qubits_per_weight_circuit": 2 * config.n_bits,
         "shots_per_weight_circuit": shots,
         "weight_circuits": n_weights,

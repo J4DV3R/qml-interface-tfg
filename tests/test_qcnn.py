@@ -243,13 +243,21 @@ class QCNNTrainingTests(unittest.TestCase):
         self.assertTrue(torch.all(output <= 1.0))
 
     def test_noise_requires_shots_and_changes_sampled_execution(self):
+        # Legacy trajectory noise still needs shots; the default density-matrix
+        # simulation returns exact noisy expectations without shots.
         with self.assertRaises(ValueError):
             QCNNModel(
                 n_qubits=2,
                 execution_config=ExecutionConfig(
                     depolarizing_probability=0.1,
+                    noise_simulation="legacy_shared_trajectory",
                 ),
             )(self.features)
+        exact_noisy = QCNNModel(
+            n_qubits=2,
+            execution_config=ExecutionConfig(depolarizing_probability=0.1),
+        )(self.features)
+        self.assertTrue(torch.all(torch.isfinite(exact_noisy)))
 
         model = QCNNModel(
             n_qubits=2,

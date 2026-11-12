@@ -292,6 +292,8 @@ def build_result_payload(
         "initial_weights": np.asarray(initial_weights, dtype=float).tolist(),
         "qgd": {
             **asdict(qgd_config),
+            "moving_gradient_codes": qgd_config.moving_gradient_codes,
+            "static_update": qgd_config.is_static,
             "finite_register_semantics": (
                 "weights are updated on a cyclic grid modulo n_levels; gradients "
                 "outside [gradient_min, gradient_max] saturate at the boundary. "
@@ -414,6 +416,17 @@ def _build_parser() -> argparse.ArgumentParser:
             "predictions even when --noise is zero"
         ),
     )
+    parser.add_argument(
+        "--noise-simulation",
+        choices=("exact-channel", "legacy-shared-trajectory"),
+        default="exact-channel",
+        help=(
+            "exact-channel (default): density matrix for QCNN circuits and one "
+            "independent Pauli trajectory per shot for QGD update circuits; "
+            "legacy-shared-trajectory reproduces the November 2026 profiles "
+            "(one Qibo trajectory per circuit execution shared by all shots)"
+        ),
+    )
     parser.add_argument("--learning-rate", type=float, default=0.1)
     parser.add_argument("--qgd-bits", type=int, default=5)
     parser.add_argument("--patience", type=int, default=None)
@@ -457,30 +470,59 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         parser.error(str(exc))
 
+    if qgd_config.is_static:
+        print(
+            "WARNING: static QGD configuration "
+            f"(n_bits={qgd_config.n_bits}, learning_rate={qgd_config.learning_rate}): "
+            "0 gradient codes move a weight; the run only quantizes the weights.",
+            file=sys.stderr,
+        )
     measured_execution_enabled = (
         args.measured_execution or requested_noise_config.noisy
     )
+    legacy_noise = args.noise_simulation == "legacy-shared-trajectory"
+    qcnn_noise_simulation = (
+        "legacy_shared_trajectory" if legacy_noise else "density_matrix"
+    )
+    update_noise_simulation = (
+        "legacy_shared_trajectory" if legacy_noise else "per_shot_trajectories"
+    )
     simulator_executor = None
+    update_executor = None
     if measured_execution_enabled:
-        noise_model_metadata = {
-            "adapter": "qibo-local-simulator",
-            "noise_model": (
-                SIMULATOR_NOISE_MODEL
-                if requested_noise_config.noisy
-                else "none"
-            ),
-            "noise_probability": requested_noise_config.depolarizing_probability,
-            "execution_mode": "measured-counts",
-        }
-        simulator_executor = QiboSimulatorExecutor(
-            capabilities=ResourceProfile(metadata=noise_model_metadata),
-            noise_transform=(
-                qibo_local_depolarizing_sensitivity_transform(
-                    requested_noise_config.depolarizing_probability
-                )
-                if requested_noise_config.noisy
-                else None
-            ),
+        def _executor(simulation: str, scope: str):
+            return QiboSimulatorExecutor(
+                capabilities=ResourceProfile(
+                    metadata={
+                        "adapter": "qibo-local-simulator",
+                        "scope": scope,
+                        "noise_model": (
+                            SIMULATOR_NOISE_MODEL
+                            if requested_noise_config.noisy
+                            else "none"
+                        ),
+                        "noise_probability": (
+                            requested_noise_config.depolarizing_probability
+                        ),
+                        "noise_simulation": (
+                            simulation if requested_noise_config.noisy else None
+                        ),
+                        "execution_mode": "measured-counts",
+                    }
+                ),
+                noise_transform=(
+                    qibo_local_depolarizing_sensitivity_transform(
+                        requested_noise_config.depolarizing_probability,
+                        simulation=simulation,
+                    )
+                    if requested_noise_config.noisy
+                    else None
+                ),
+            )
+
+        simulator_executor = _executor(qcnn_noise_simulation, "QCNN circuits")
+        update_executor = _executor(
+            update_noise_simulation, "QGD arithmetic update circuits"
         )
     # Noise is supplied by the shared executor on both QCNN and QGD circuits;
     # leave the built-in QCNN-only model disabled to avoid double application.
@@ -515,6 +557,7 @@ def main(argv: list[str] | None = None) -> int:
             model_config,
             qgd_config,
             training_config,
+            update_executor=update_executor,
         )
     except ValueError as exc:
         parser.error(str(exc))
@@ -573,6 +616,14 @@ def main(argv: list[str] | None = None) -> int:
             else ()
         ),
         measured_execution_requested=args.measured_execution,
+    )
+    payload["model"]["simulator_noise"]["simulation"] = (
+        {
+            "qcnn_circuits": qcnn_noise_simulation,
+            "qgd_update_circuits": update_noise_simulation,
+        }
+        if requested_noise_config.noisy
+        else None
     )
     serialized = json.dumps(payload, indent=2, allow_nan=False) + "\n"
 
