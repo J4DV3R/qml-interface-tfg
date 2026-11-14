@@ -1,0 +1,46 @@
+% Preámbulo común de los informes de docs/reports/ (no forma parte de la memoria).
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish,es-noshorthands,es-tabla]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.3cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{amsmath}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{adjustbox}
+\newcommand{\fittable}[1]{\begin{adjustbox}{max width=\linewidth}\input{#1}\end{adjustbox}}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage[dvipsnames,table]{xcolor}
+\usepackage{fancyhdr}
+\usepackage[most]{tcolorbox}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{accent}{HTML}{2A78D6}
+\definecolor{inkmuted}{HTML}{52514E}
+\definecolor{boxbg}{HTML}{F3F6FB}
+\definecolor{warnbg}{HTML}{FDF6E7}
+\definecolor{warnline}{HTML}{C98500}
+
+\setlist{itemsep=2pt,topsep=4pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\renewcommand{\arraystretch}{1.12}
+
+\newtcolorbox{keybox}[1][]{colback=boxbg,colframe=accent,boxrule=0.6pt,arc=2pt,
+  left=8pt,right=8pt,top=6pt,bottom=6pt,fonttitle=\bfseries,title={#1}}
+\newtcolorbox{warnbox}[1][]{colback=warnbg,colframe=warnline,boxrule=0.6pt,arc=2pt,
+  left=8pt,right=8pt,top=6pt,bottom=6pt,fonttitle=\bfseries,title={#1}}
+
+\newcommand{\estado}[1]{\textsf{\small\textbf{\color{accent}#1}}}
+\newcommand{\ruta}[1]{\texttt{\small #1}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.3pt}
+\fancyfoot[C]{\small\color{inkmuted}\thepage}

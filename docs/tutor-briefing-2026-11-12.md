@@ -1,6 +1,6 @@
 # Resumen para la tutoría: estado del TFG y decisiones pendientes
 
-**Fecha:** 12 de noviembre de 2026. **Base:** revisión `bc877bd` con cambios sin commit (secciones 30–34 de `docs/TFG-technical-log.md`).
+**Fecha:** 12 de noviembre de 2026. **Base:** commits `dec0f0b`–`4424eb7` sobre `bc877bd` (secciones 30–34 de `docs/TFG-technical-log.md`). Versión PDF con figuras: `docs/reports/tutor-briefing-2026-11-12.pdf`; informe detallado de resultados: `docs/reports/variational-results.pdf`.
 
 Estados usados: **Propuesto** (solo en plan), **Implementado** (código sin evaluar), **Validado** (prueba concreta superada) y **Evaluado** (experimento con resultados persistidos y analizados).
 
@@ -15,7 +15,7 @@ Estados usados: **Propuesto** (solo en plan), **Implementado** (código sin eval
 
 | Componente | Estado | Evidencia |
 |---|---|---|
-| QCNN de 4 qubits (codificación angular/fase, convolución, pooling lógico) | Validado | Pruebas unitarias; 124/124 OK en el árbol actual |
+| QCNN de 4 qubits (codificación angular/fase, convolución, pooling lógico) | Validado | Pruebas unitarias; 124/124 OK el 12 de noviembre (antes de añadir las 3 pruebas de la fase C, que pasan por separado) |
 | Legado híbrido PyTorch + Adam | Evaluado (histórico, n = 3) | `results/initial-hybrid-adam/` |
 | QGD M1–M5 (actualización modular reversible) | Implementado y validado unitariamente; **no evaluado** | Log, secciones 28–30; auditoría |
 | Ruido local corregido (matriz de densidad, shots independientes) | Validado | Log, sección 30 |
