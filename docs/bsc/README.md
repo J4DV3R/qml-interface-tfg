@@ -43,6 +43,7 @@ No se han podido leer de forma automática la página de Slurm del BSC ni la API
 **Validación (20-nov-2026, árbol sucio sobre `25a0e69`):**
 - Comando: `qml_env/Scripts/python.exe -B -m unittest tests.test_hardware_preparation tests.test_circuit_execution tests.test_variational_training tests.test_fast_qcnn tests.test_partition_analysis`.
 - Resultado: 47 pruebas OK.
+- Revisión previa al push (20-nov, árbol basado en `b9499d0`): **suite completa, 138 pruebas OK**. Se añadió una prueba que compara el estimador de coste con los circuitos que cuenta un entrenamiento real (sección 36 del log).
 - La suite completa no se ha reejecutado.
 
 ## Datos para la solicitud (de `cost-estimates.md`)

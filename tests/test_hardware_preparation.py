@@ -48,6 +48,22 @@ class CostModelTests(unittest.TestCase):
         self.assertEqual(estimate.total_shots, estimate.circuits * 100)
         self.assertTrue(all(len(s.hours) == 2 for s in default_scenarios()))
 
+    def test_estimate_matches_an_actual_training_run(self):
+        from src.fast_qcnn import FastQCNNConfig
+        from src.variational_training import FastEvaluator, VariationalTrainingConfig, train_variational_qcnn
+
+        rng = np.random.default_rng(0)
+        x, y = rng.uniform(0, 1, (12, 4)), np.where(rng.random(12) > 0.5, 1.0, -1.0)
+        xv, yv = rng.uniform(0, 1, (5, 4)), np.where(rng.random(5) > 0.5, 1.0, -1.0)
+        for optimizer in ("gd", "adam", "spsa", "sequential"):
+            with self.subTest(optimizer=optimizer):
+                config = VariationalTrainingConfig(optimizer=optimizer, max_steps=4, evaluate_train_every=2)
+                result = train_variational_qcnn(x, y, xv, yv, np.zeros((2, 4)), FastEvaluator(FastQCNNConfig(4)),
+                                                config, np.random.default_rng(1))
+                estimate = training_cost("x", optimizer=optimizer, n_train=12, n_validation=5, steps=4, shots=1,
+                                         train_evaluation_every=2)
+                self.assertEqual(estimate.circuits, result.optimization_circuits + result.evaluation_circuits)
+
 
 class TranspilerTests(unittest.TestCase):
     def test_native_decompositions_are_exact(self):

@@ -25,6 +25,10 @@ Después se envía con `sbatch --array=1-160%40 --export=ALL,JOBS_FILE=slurm/job
 - La **procedencia** (`collect_provenance`) llama a `git` dentro del repositorio: hay que clonar el repositorio en MN5, no copiar solo los archivos, para que cada JSON registre la revisión y el hash del diff.
 - **Ona:** el BSC proporciona Qibo y Qililab. Hay que comprobar si la versión de Qibo del BSC es compatible con la 0.1.11 usada aquí. La construcción de circuitos es Qibo estándar; el transpilador propio (`src/transpilation.py`) no depende de `qibo.transpiler`.
 
+## Antes de enviar
+
+Slurm no crea el directorio de `--output`/`--error`: hay que ejecutar `mkdir -p slurm/logs` antes de `sbatch`, o el trabajo falla sin dejar log.
+
 ## Logs
 
 Cada tarea escribe `EXIT_CODE`, `WALL_SECONDS` y `HOST` en `slurm/logs/runs/`, con el mismo criterio que los logs de las fases A–C.

@@ -50,6 +50,8 @@ constituyen una evaluación de convergencia o rendimiento del método.
   `git diff --check`. El 12 de noviembre de 2026 la suite de 92 pruebas pasó
   en `bc877bd` limpio. Tras las correcciones de la auditoría, la suite pasa con
   124 pruebas en un árbol de trabajo basado en `bc877bd` (sección 30 del log).
+  El 20 de noviembre de 2026, con la línea variacional, la fase C y la
+  preparación BSC, la suite completa pasa con 138 pruebas (sección 36 del log).
 - **Flujo y frontera clásica-cuántica:** sin executor, el primer gradiente se
   obtiene mediante parameter-shift exacto y sin ruido; los gradientes siguientes
   usan shots si se configuraron. En M5, cada actualización se ejecuta como

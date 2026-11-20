@@ -733,7 +733,7 @@ evaluación final de cada condición confirmatoria.
 
 ## Protocolo propuesto: benchmark variacional de optimizadores (12 de noviembre de 2026)
 
-**Estado:** propuesto; el código está implementado y validado unitariamente (log, sección 30), pero no se ha ejecutado ningún experimento. Requiere autorización.
+**Estado (actualizado el 20 de noviembre de 2026): ejecutado y evaluado en simulación.** El texto de esta sección conserva el protocolo tal como se propuso el 12 de noviembre; lo ejecutado y las desviaciones están en «Ejecución» al final de la sección y en las secciones 31–34 del log.
 
 **Pregunta:** con el mismo circuito QCNN de 4 qubits, ¿qué regla de actualización (GD, Adam, SPSA o secuencial tipo Rotosolve/NFT) alcanza mejor pérdida de validation y mejor test, y con qué coste en ejecuciones de circuito, en modo exacto, con shots y con ruido?
 
@@ -752,4 +752,39 @@ qml_env\Scripts\python.exe -m experiments.run_variational_benchmark --dataset br
 qml_env\Scripts\python.exe -m experiments.analyze_variational_benchmark results/variational/A-tuning-bc-exact --output results/variational/A-tuning-bc-exact-analysis.md --curves-csv results/variational/A-tuning-bc-exact-curves.csv
 ```
 
-**Límites:** simulación local; el ruido es un modelo de sensibilidad (depolarizante local + lectura) y no una calibración de hardware; no hay transpilación. La frontera clásica (pérdida, optimizador, selección) es la del modelo variacional estándar.
+**Límites:** simulación local; el ruido es un modelo de sensibilidad (depolarizante local + lectura) y no una calibración de hardware; los entrenamientos no usan transpilación. La frontera clásica (pérdida, optimizador, selección) es la del modelo variacional estándar.
+
+### Ejecución (12 de noviembre de 2026)
+
+Cada fase tiene un README con pre-registro, comandos, procedencia y resultados.
+
+| Fase | Datos | Resultado y fuente |
+|---|---|---|
+| A | Breast Cancer, partición 42, sin test | GD `lr=0.5`, Adam `lr=0.1`, SPSA `a=1.6` tras ampliar la rejilla (desviación documentada). `results/variational/A-tuning-bc-exact/`; log, sección 31 |
+| B | Breast Cancer, partición 42 | `results/variational/B-confirm-bc/`; log, sección 32 |
+| B (réplica) | Iris, partición 42 | Iris pasó de prueba de humo a réplica pre-registrada. `results/variational/B-confirm-iris/`; log, sección 33 |
+| C | Ambos datasets, 10 particiones nuevas (semillas 1–10), solo exacto | Pre-registrada; resultados principales del benchmark. `results/variational/C-partitions/`; log, sección 34 |
+
+**Análisis de la fase C** (`experiments/analyze_partitions.py`):
+- La unidad de análisis es la partición: se promedian las 8 semillas dentro de cada partición.
+- Holm por dataset sobre las 6 comparaciones frente a Adam, y Holm sobre el bloque de observaciones O1–O4.
+- Patience reconstruida del historial; una prueba unitaria verifica que equivale a entrenar con `patience=P`.
+- La partición 42 solo se usa como sensibilidad.
+
+Las figuras y tablas de `docs/reports/` se derivan de estos JSON con `experiments/plot_variational_report.py`.
+
+## Protocolo propuesto: inferencia en hardware (plan BSC, H1)
+
+**Estado: propuesto.** La preparación está implementada y validada en simulación (log, sección 35; `docs/bsc/README.md`). No hay acceso al BSC ni ninguna ejecución en hardware.
+
+- **Objetivo:** medir el efecto del hardware real sobre checkpoints ya entrenados y seleccionados por validation en la fase C, sin seleccionar nada con test.
+- **Procedimiento:** `experiments/run_hardware_inference.py`.
+  - Transpilación con un layout fijo para todas las muestras.
+  - Ejecución por lotes con 1000 shots.
+  - Calibración de lectura al principio y al final.
+  - Métricas exactas, brutas y mitigadas.
+- **Pre-registro pendiente** antes de ejecutar en el chip: qué checkpoints se usan (por ejemplo, una semilla por condición y partición), qué chip y topología, qué shots y qué comparación se reporta (chip frente a exacto y frente al simulador con ruido).
+- **Límites conocidos de la preparación:**
+  - Las topologías y puertas nativas son supuestas.
+  - El simulador que imita el chip usa ruido supuesto.
+  - El adaptador de Qililab es un esqueleto.

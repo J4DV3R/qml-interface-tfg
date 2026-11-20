@@ -41,9 +41,9 @@ reunión, una validación ni un resultado.
   usa el simulador Qibo, no un proveedor de hardware. El CLI está en
   `experiments/run_quantum_training.py`. La suite de 92 pruebas se reejecutó
   en `bc877bd` limpio el 12 de noviembre de 2026 (OK). La validación más
-  reciente pasó 124 pruebas el 12 de noviembre de 2026 sobre un árbol de
-  trabajo sucio basado en `bc877bd` (correcciones de la auditoría, sección 30
-  del log); 73, 88 y 92 son conteos históricos.
+  reciente pasó la suite completa de 138 pruebas el 20 de noviembre de 2026
+  sobre un árbol de trabajo sucio basado en `b9499d0` (revisión previa al
+  push, sección 36 del log); 73, 88, 92 y 124 son conteos históricos.
 - **Nueva línea variacional (implementada, validada unitariamente y evaluada
   en simulación):** `src/fast_qcnn.py` (simulador NumPy vectorizado, idéntico a Qibo
   con error < 1e-10, ~76 veces más rápido) y `src/variational_training.py`
@@ -199,6 +199,13 @@ JSON de resultados y su configuración.
 - `docs/TFG-technical-log.md`: registro técnico de decisiones.
 - `docs/experimental-protocol.md`: protocolo experimental base.
 - `docs/quantum-training-plan.md`: plan del entrenamiento no híbrido.
+- `docs/tutor-briefing-2026-11-12.md`: resumen para la tutoría (actualizado el
+  20-nov con el plan BSC); su versión PDF está en `docs/reports/`.
+- `docs/reports/`: informes LaTeX/PDF (resultados variacionales y resumen para
+  la tutoría), con figuras y tablas generadas desde los JSON por
+  `experiments/plot_variational_report.py`; no forman parte de la memoria.
+- `docs/bsc/`: plan de ejecución en MareNostrum5-Ona y datos técnicos para la
+  solicitud RES (`cost-estimates.md/json`, generados).
 - `memory/`: memoria LaTeX modular; `main.tex`, `preamble.tex`, capítulos,
   anexos y `bibliography.bib` (todavía sin referencias verificadas).
 
@@ -398,6 +405,11 @@ TFG en cada mensaje.
   código evita. La línea variacional modela además un error de lectura
   simétrico opcional; no hay amplitude ni phase damping.
 - La simulación es local en CPU y no representa hardware cuántico real.
+- Preparación BSC (sección 35 del log): las topologías y las puertas nativas
+  `{RX,RY,RZ,CZ}` del transpilador son supuestas, el ruido del mock y el modelo
+  de tiempo con lotes son supuestos, `QililabExecutor` lanza
+  `NotImplementedError` y los scripts `slurm/` tienen marcadores `<...>` sin
+  verificar. No presentar esta preparación como ejecución en hardware.
 - Los resultados históricos usan pocas semillas y un único test; no permiten
   afirmaciones fuertes de significación.
 - La ruta QGD M1-M5 está implementada y validada unitariamente. Solo hay cinco

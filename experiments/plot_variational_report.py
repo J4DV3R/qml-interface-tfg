@@ -116,8 +116,9 @@ def legend_handles(include_encoding: bool = True):
 
 def save(fig, out: Path, name: str) -> Path:
     path = out / f"{name}.pdf"
-    fig.savefig(path)
-    fig.savefig(out / f"{name}.png", dpi=160)
+    # No creation date in the metadata: regenerating from the same JSON yields identical files.
+    fig.savefig(path, metadata={"CreationDate": None})
+    fig.savefig(out / f"{name}.png", dpi=160, metadata={"Software": None})
     plt.close(fig)
     return path
 
@@ -443,7 +444,7 @@ FIGURES = (fig_phase_a, fig_curves, fig_phase_b, fig_phase_c_accuracy, fig_parti
 # --------------------------------------------------------------------------- LaTeX tables
 def num(value: float, decimals: int = 3, sign: bool = False) -> str:
     text = f"{value:+.{decimals}f}" if sign else f"{value:.{decimals}f}"
-    return "$" + text.replace("-", "-").replace(".", "{,}") + "$"
+    return "$" + text.replace(".", "{,}") + "$"
 
 
 def ci(stats: dict, decimals: int = 3) -> str:

@@ -144,12 +144,25 @@ def training_cost(
     shots: int,
     runs: int = 1,
     minibatch: int | None = None,
+    train_evaluation_every: int | None = None,
 ) -> CostEstimate:
-    """Train ``runs`` models for ``steps`` steps (validation at every step and step 0)."""
+    """Train ``runs`` models for ``steps`` steps (validation at every step and step 0).
+
+    ``train_evaluation_every`` mirrors ``VariationalTrainingConfig.evaluate_train_every``
+    (its default is 1, i.e. the full training loss is also evaluated every step).
+    ``None`` excludes that diagnostic, as a hardware run would to save circuits.
+    """
     samples = minibatch if minibatch is not None else n_train
     per_run = steps * samples * circuits_per_sample_step(optimizer) + (steps + 1) * n_validation
+    if train_evaluation_every is not None:
+        evaluations = 1 + steps // train_evaluation_every  # step 0 plus every k-th step
+        per_run += evaluations * n_train
     circuits = runs * per_run
     batch = f", minibatch {minibatch}" if minibatch is not None else ""
+    if train_evaluation_every is None:
+        batch += ", no training-loss evaluation"
+    else:
+        batch += f", training loss every {train_evaluation_every} step(s)"
     return CostEstimate(
         scenario,
         f"{runs} training run(s), {optimizer}, {steps} steps, {samples} samples per step{batch}, "

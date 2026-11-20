@@ -1229,3 +1229,24 @@ Las 28 invocaciones (224 entrenamientos) terminaron con `EXIT_CODE=0`; I3 tardó
 - Las páginas de usuario del BSC no se pudieron leer de forma automática.
 
 **Pendiente:** fase 0 (decisión del tutor y solicitud RES) y fase 2, que requiere acceso.
+
+## 36. Revisión global antes del push (20 de noviembre de 2026)
+
+Revisión de los commits `25a0e69`, `52ce86c` y `b9499d0`, que aún no estaban en `origin/main`.
+
+**Validado sobre el árbol basado en `b9499d0`:**
+- **Suite completa:** `qml_env/Scripts/python.exe -B -m unittest discover -s tests`, 138 pruebas OK. Son las 124 anteriores, 3 de la fase C y 11 de la preparación BSC.
+- `compileall` y `git diff --check`: OK.
+- `experiments/make_variational_jobs.py` reproduce exactamente los 160 comandos de la fase C registrados en sus manifiestos.
+- Las figuras regeneradas son idénticas byte a byte y las tablas LaTeX coinciden con las del commit.
+
+**Correcciones:**
+- `run_hardware_inference.py`: para checkpoints entrenados con shots o ruido, la comparación con el valor guardado usaba la accuracy medida. Ahora usa `test.exact_noiseless_diagnostic`. Se comprobó con un checkpoint de I2.
+- `hardware_cost.training_cost`: no contaba la evaluación de la pérdida de train, que por defecto se hace en cada paso (`evaluate_train_every=1`). Se añade el parámetro `train_evaluation_every`; los escenarios de hardware la excluyen y lo dicen explícitamente. Una prueba nueva compara el estimador con los circuitos que cuenta un entrenamiento real para los cuatro optimizadores.
+- `plot_variational_report.py`: los PDF y PNG ya no guardan la fecha de creación, así que son reproducibles. Se eliminó un `replace` sin efecto.
+- `slurm/README.md`: Slurm no crea el directorio de logs, hay que crearlo antes de `sbatch`.
+
+**Documentación:**
+- `docs/experimental-protocol.md` decía que el benchmark variacional no se había ejecutado. Ahora remite a las fases A–C y añade el protocolo propuesto de inferencia en hardware (H1).
+- `AGENTS.md` actualiza el conteo de pruebas y añade al mapa `docs/reports/`, `docs/bsc/` y el resumen para la tutoría, además de una limitación sobre la preparación BSC.
+- `README.md`, `docs/bsc/README.md` y el resumen para la tutoría (Markdown y PDF) actualizan el conteo de pruebas.

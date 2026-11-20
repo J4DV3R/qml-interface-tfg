@@ -50,13 +50,13 @@ Estados usados:
 Componente & Estado & Evidencia \\
 \midrule
 QCNN de 4 qubits (codificación angular y de fase, convolución, pooling lógico) & \estado{Validado} &
-  Pruebas unitarias: 124/124 OK el 12-nov; las añadidas después (fase C y plan BSC) pasan por separado \\
+  Pruebas unitarias: suite completa, 138/138 OK el 20-nov \\
 Legado híbrido PyTorch + Adam & \estado{Evaluado} (histórico, $n=3$) & \ruta{results/\allowbreak initial-hybrid-adam/} \\
 QGD M1--M5 (actualización modular reversible) & \estado{Validado} unitariamente; \textbf{no evaluado} & Log, secciones 28--30; auditoría \\
 Ruido local corregido (matriz de densidad, shots independientes) & \estado{Validado} & Log, sección 30 \\
 Línea variacional (GD, Adam, SPSA, secuencial tipo Rotosolve/NFT) & \estado{Evaluado} en simulación & \ruta{results/variational/} (log, secciones 31--34) \\
 Preparación para hardware (transpilación, ejecución por lotes, mitigación de lectura, simulador que imita el chip) &
-  \estado{Validado} en simulación & \ruta{docs/bsc/README.md}; log, sección 35; 47 pruebas OK \\
+  \estado{Validado} en simulación & \ruta{docs/bsc/README.md}; log, secciones 35--36; incluida en la suite completa \\
 Ejecución en hardware real (BSC, MareNostrum5-Ona) & \estado{Propuesto} & Sin acceso ni ejecuciones; el adaptador de Qililab es un esqueleto \\
 \bottomrule
 \end{tabularx}
@@ -267,7 +267,7 @@ particiones) y presentar los de la fase B como un caso concreto. El informe
 \textbf{Qué se puede llevar al chip:} solo la línea variacional. QGD no es viable, porque sus puertas
 multicontroladas hacen el circuito demasiado profundo.
 
-\textbf{Hecho sin acceso} (fase 1; \estado{Implementado} y \estado{Validado} en simulación, 47 pruebas OK):
+\textbf{Hecho sin acceso} (fase 1; \estado{Implementado} y \estado{Validado} en simulación; suite completa de 138 pruebas OK):
 \begin{itemize}
   \item Transpilador propio (Qibo 0.1.11 no trae uno). Reubica los qubits, añade SWAPs donde el chip no tiene conexión
         y descompone el circuito en puertas RX/RY/RZ/CZ. El resultado medido coincide exactamente con el circuito original.

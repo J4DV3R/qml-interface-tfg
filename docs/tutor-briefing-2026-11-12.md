@@ -19,12 +19,12 @@ Estados usados: **Propuesto** (solo en plan), **Implementado** (código sin eval
 
 | Componente | Estado | Evidencia |
 |---|---|---|
-| QCNN de 4 qubits (codificación angular/fase, convolución, pooling lógico) | Validado | Pruebas unitarias: 124/124 OK el 12 de noviembre. Las pruebas añadidas después (fase C y plan BSC) pasan por separado |
+| QCNN de 4 qubits (codificación angular/fase, convolución, pooling lógico) | Validado | Pruebas unitarias: suite completa, 138/138 OK el 20 de noviembre |
 | Legado híbrido PyTorch + Adam | Evaluado (histórico, n = 3) | `results/initial-hybrid-adam/` |
 | QGD M1–M5 (actualización modular reversible) | Implementado y validado unitariamente; **no evaluado** | Log, secciones 28–30; auditoría |
 | Ruido local corregido (matriz de densidad, shots independientes) | Validado | Log, sección 30 |
 | Línea variacional (GD, Adam, SPSA, secuencial tipo Rotosolve/NFT) | **Evaluado en simulación** | `results/variational/` (log, secciones 31–34) |
-| Preparación para hardware (transpilación, ejecución por lotes, mitigación de lectura, simulador que imita el chip) | Implementado y validado en simulación | `docs/bsc/README.md`; log, sección 35; 47 pruebas OK |
+| Preparación para hardware (transpilación, ejecución por lotes, mitigación de lectura, simulador que imita el chip) | Implementado y validado en simulación | `docs/bsc/README.md`; log, secciones 35–36; incluida en la suite completa |
 | Ejecución en hardware real (BSC, MareNostrum5-Ona) | Propuesto | Sin acceso ni ejecuciones; el adaptador de Qililab es un esqueleto |
 
 ## 3. Problemas encontrados y corregidos (auditoría independiente)
@@ -137,7 +137,7 @@ Qué se mantiene y qué no:
 
 **Qué se puede llevar al chip:** solo la línea variacional. QGD no es viable, porque sus puertas multicontroladas hacen el circuito demasiado profundo.
 
-**Hecho sin acceso (fase 1; implementado y validado en simulación, 47 pruebas OK):**
+**Hecho sin acceso (fase 1; implementado y validado en simulación; suite completa de 138 pruebas OK):**
 - Transpilador propio (Qibo 0.1.11 no trae uno). Reubica los qubits, añade SWAPs donde el chip no tiene conexión y descompone el circuito en puertas RX/RY/RZ/CZ. El resultado medido coincide exactamente con el circuito original.
 - Ejecución de circuitos por lotes, porque en el BSC el coste está dominado por cada conexión.
 - Un simulador que se comporta como el chip: solo acepta puertas nativas sobre qubits conectados, añade ruido y error de lectura.

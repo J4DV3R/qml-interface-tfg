@@ -77,7 +77,14 @@ def load_run(path: Path) -> dict[str, Any]:
         "initialization_seed": int(run["seeds"]["initialization"]),
         "weights": np.asarray(run["training"]["best_weights"], dtype=float).reshape(2, 4),
         "checkpoint_step": run["training"]["best_step"],
-        "stored_test_accuracy": run.get("test", {}).get("metrics", {}).get("accuracy"),
+        # Compare exact predictions with the stored *exact* test accuracy: for runs
+        # trained with shots/noise, test.metrics is a measured estimate and the exact
+        # value lives in test.exact_noiseless_diagnostic.
+        "stored_test_accuracy": (
+            run.get("test", {}).get("exact_noiseless_diagnostic", {}).get("metrics", {}).get("accuracy")
+            if run.get("test", {}).get("exact_noiseless_diagnostic")
+            else run.get("test", {}).get("metrics", {}).get("accuracy")
+        ),
         "training_note": note,
     }
 
