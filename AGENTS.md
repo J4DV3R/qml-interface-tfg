@@ -171,6 +171,18 @@ JSON de resultados y su configuración.
 - `experiments/analyze_partitions.py`: análisis por partición de la fase C
   (Holm, baselines por partición, observaciones O1-O4 y patience reconstruida
   del historial, con reevaluación exacta del test una vez por regla).
+- `experiments/plot_variational_report.py`: figuras y tablas LaTeX de
+  `docs/reports/` derivadas de los JSON de las fases A-C.
+- Plan BSC (fase 1, implementado y validado en simulación; sin acceso ni
+  ejecución en hardware; `docs/bsc/README.md`, sección 35 del log):
+  `src/hardware_cost.py` (coste en circuitos y modelos de tiempo supuestos),
+  `src/transpilation.py` (layout, SWAPs y puertas nativas supuestas
+  `{RX,RY,RZ,CZ}`; Qibo 0.1.11 no trae transpilador),
+  `src/hardware_execution.py` (ejecución por lotes, mock ruidoso de hardware,
+  mitigación de lectura y `QililabExecutor` como esqueleto no funcional),
+  `experiments/run_hardware_inference.py`, `experiments/estimate_hardware_cost.py`,
+  `experiments/make_variational_jobs.py`, `slurm/` (marcadores `<...>`) y
+  `tests/test_hardware_preparation.py`.
 - `tests/test_qcnn.py`: pruebas unitarias del prototipo.
 - `tests/test_quantum_engine.py`, `tests/test_optimizers.py`,
   `tests/test_quantum_update.py`, `tests/test_quantum_training.py`,

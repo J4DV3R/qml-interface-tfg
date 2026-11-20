@@ -1192,3 +1192,40 @@ Las 28 invocaciones (224 entrenamientos) terminaron con `EXIT_CODE=0`; I3 tardó
 **Limitaciones:** las particiones comparten muestras; 15 casos de test en Iris; hiperparámetros ajustados en la partición 42 de Breast Cancer; solo simulación exacta; sin QPU.
 
 **Pendiente:** decidir qué línea adopta la memoria y qué resultados son oficiales (resumen para la tutoría en `docs/tutor-briefing-2026-11-12.md`); aceptación del tutor.
+
+## 35. Plan BSC, fase 1: preparación para hardware sin acceso (20 de noviembre de 2026)
+
+**Estado: implementado y validado en simulación; sin acceso al BSC ni ejecución en hardware.** Plan y entregables en `docs/bsc/README.md`.
+
+**Contexto:**
+- Se propone ejecutar la línea variacional en MareNostrum5-Ona (BSC).
+- Según la guía de acceso de la RES (v3.3), son dos chips superconductores (20 y 35 qubits), con flujos basados en Qibo y Qililab.
+- Los trabajos en la partición cuántica deben usar el chip; las simulaciones van a MN5-GPP o MN5-ACC.
+- La solicitud pide qubits, profundidad, shots, puertas y duración.
+
+**Implementado:**
+- `src/hardware_cost.py`: coste en circuitos y modelos de tiempo supuestos.
+- `src/transpilation.py`: layout, SWAPs y puertas nativas `{RX, RY, RZ, CZ}`. Es propio porque Qibo 0.1.11 no incluye transpilador.
+- `src/hardware_execution.py`: ejecución por lotes; `HardwareMockExecutor`, un simulador con ruido local y error de lectura que solo acepta puertas nativas acopladas; calibración y mitigación de lectura; y `QililabExecutor` como esqueleto no funcional.
+- `experiments/run_hardware_inference.py`, `experiments/estimate_hardware_cost.py`, `experiments/make_variational_jobs.py` y los scripts de `slurm/`, con marcadores `<...>`.
+
+**Validado:**
+- `tests/test_hardware_preparation.py` (10 pruebas) junto con `test_circuit_execution`, `test_variational_training`, `test_fast_qcnn` y `test_partition_analysis`: 47 OK sobre el árbol sucio basado en `25a0e69`.
+- Las descomposiciones nativas son exactas (H, CNOT y SWAP, hasta fase global).
+- La distribución medida de la QCNN se conserva con error < 1e-10 en 6 topologías.
+- La mitigación de lectura recupera el valor esperado.
+- La inferencia en seco reproduce la accuracy exacta guardada.
+
+**Datos técnicos (`docs/bsc/cost-estimates.md`):**
+- 4 qubits lógicos.
+- Profundidad lógica de 25–26 con 11 CNOT.
+- Profundidad nativa en topologías genéricas: 26–38 (0–2 SWAPs); 65–68 en estrella (6 SWAPs).
+- La inferencia de 8 checkpoints cuesta 248 circuitos en Iris y 1376 en Breast Cancer.
+- Entrenar con Adam en el chip no es viable: 1,3 millones de circuitos en Breast Cancer.
+
+**Limitaciones:**
+- Las topologías, las puertas nativas, el modelo de ruido del mock y los tiempos con lotes son supuestos.
+- No hay API de Qililab verificada.
+- Las páginas de usuario del BSC no se pudieron leer de forma automática.
+
+**Pendiente:** fase 0 (decisión del tutor y solicitud RES) y fase 2, que requiere acceso.

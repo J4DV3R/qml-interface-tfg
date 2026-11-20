@@ -189,6 +189,32 @@ El protocolo propuesto está al final de
 `legacy_shared_trajectory` reproduce el comportamiento con el que se generaron
 los JSON M5/screens.
 
+Informes PDF con figuras y tablas derivadas de los JSON, en
+[`docs/reports/`](docs/reports/): `variational-results.pdf` y
+`tutor-briefing-2026-11-12.pdf`. Se regeneran con
+`experiments/plot_variational_report.py`.
+
+## Preparación para hardware: plan BSC (fase 1, sin acceso)
+
+Plan para ejecutar la línea variacional en MareNostrum5-Ona (BSC: chips de 20
+y 35 qubits, Qibo + Qililab). Estado: **implementado y validado en
+simulación; ninguna ejecución en hardware**. Detalle en
+[`docs/bsc/README.md`](docs/bsc/README.md) y en la sección 35 del log.
+
+- [`src/transpilation.py`](src/transpilation.py): layout, SWAPs y
+  descomposición a puertas nativas supuestas `{RX, RY, RZ, CZ}`.
+- [`src/hardware_execution.py`](src/hardware_execution.py): ejecución por
+  lotes, mock ruidoso de hardware, calibración y mitigación de lectura, y
+  `QililabExecutor` como esqueleto no funcional.
+- [`src/hardware_cost.py`](src/hardware_cost.py) y
+  [`experiments/estimate_hardware_cost.py`](experiments/estimate_hardware_cost.py):
+  datos técnicos para la solicitud RES, en
+  [`docs/bsc/cost-estimates.md`](docs/bsc/cost-estimates.md).
+- [`experiments/run_hardware_inference.py`](experiments/run_hardware_inference.py):
+  inferencia de checkpoints entrenados, en seco con el mock.
+- [`slurm/`](slurm/): job arrays para MN5-GPP y plantilla para Ona, con
+  marcadores pendientes.
+
 ## Prototipo QCNN actual
 
 El paquete `src` contiene:
