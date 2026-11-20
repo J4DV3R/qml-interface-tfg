@@ -1,13 +1,14 @@
 \documentclass[11pt,a4paper]{article}
 \input{report-preamble}
 \fancyhead[L]{\small\color{inkmuted}Resumen para la tutoría}
-\fancyhead[R]{\small\color{inkmuted}12 de noviembre de 2026}
+\fancyhead[R]{\small\color{inkmuted}12 de noviembre de 2026 · actualizado el 20 de noviembre}
 \graphicspath{{figures/}}
 
 \title{\textbf{Resumen para la tutoría}\\[2pt]\large Estado del TFG y decisiones pendientes}
 \author{TFG «Plataforma para la experimentación con Quantum Machine Learning»}
-\date{12 de noviembre de 2026 · commits \texttt{dec0f0b}--\texttt{4424eb7} sobre \texttt{bc877bd}\\
-\small Fuente: \ruta{docs/tutor-briefing-2026-11-12.md} y secciones 30--34 de \ruta{docs/TFG-technical-log.md}}
+\date{12 de noviembre de 2026 · \textbf{actualizado el 20 de noviembre} con el plan BSC (sección~\ref{sec:bsc})\\
+\small commits \texttt{dec0f0b}--\texttt{52ce86c} sobre \texttt{bc877bd} · Fuente: \ruta{docs/tutor-briefing-2026-11-12.md}
+y secciones 30--35 de \ruta{docs/TFG-technical-log.md}}
 
 \begin{document}
 \maketitle
@@ -31,6 +32,12 @@ Estados usados:
         \texttt{b/lr}.
   \item Qué significa «no híbrido» para el TFG: sin PyTorch, sin Adam, o actualización ejecutada como circuito.
   \item Qué resultados serán \textbf{oficiales} en la memoria.
+  \item \textbf{Ejecución en hardware en el BSC} (sección~\ref{sec:bsc}):
+  \begin{itemize}
+    \item si entra en el TFG y con qué alcance (solo inferencia o también entrenamiento corto);
+    \item quién figura como responsable de la solicitud a la RES;
+    \item si hay un proyecto financiado que permita pedir acceso por la vía rápida (\textit{fast-track}).
+  \end{itemize}
 \end{enumerate}
 \end{keybox}
 
@@ -43,12 +50,14 @@ Estados usados:
 Componente & Estado & Evidencia \\
 \midrule
 QCNN de 4 qubits (codificación angular y de fase, convolución, pooling lógico) & \estado{Validado} &
-  Pruebas unitarias: 124/124 OK el 12-nov (las 3 pruebas nuevas de la fase C pasan por separado) \\
+  Pruebas unitarias: 124/124 OK el 12-nov; las añadidas después (fase C y plan BSC) pasan por separado \\
 Legado híbrido PyTorch + Adam & \estado{Evaluado} (histórico, $n=3$) & \ruta{results/\allowbreak initial-hybrid-adam/} \\
 QGD M1--M5 (actualización modular reversible) & \estado{Validado} unitariamente; \textbf{no evaluado} & Log, secciones 28--30; auditoría \\
 Ruido local corregido (matriz de densidad, shots independientes) & \estado{Validado} & Log, sección 30 \\
 Línea variacional (GD, Adam, SPSA, secuencial tipo Rotosolve/NFT) & \estado{Evaluado} en simulación & \ruta{results/variational/} (log, secciones 31--34) \\
-Ejecución en hardware real (QPU) & \estado{Propuesto} & No hay adaptador, transpilación ni ejecuciones \\
+Preparación para hardware (transpilación, ejecución por lotes, mitigación de lectura, simulador que imita el chip) &
+  \estado{Validado} en simulación & \ruta{docs/bsc/README.md}; log, sección 35; 47 pruebas OK \\
+Ejecución en hardware real (BSC, MareNostrum5-Ona) & \estado{Propuesto} & Sin acceso ni ejecuciones; el adaptador de Qililab es un esqueleto \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -172,8 +181,8 @@ Opción & Qué implica & Coste & Riesgo \\
 
 \begin{keybox}[Recomendación técnica]
 Opción \textbf{A}, o \textbf{C} si el tutor considera imprescindible una cifra de QGD. En ambos casos, el paso de
-mayor valor hacia el «hardware real» sería una ejecución pequeña de la línea variacional en un proveedor de QPU (por
-ejemplo, la inferencia de un checkpoint entrenado).
+mayor valor hacia el «hardware real» sería una ejecución pequeña de la línea variacional en un QPU (por
+ejemplo, la inferencia de un checkpoint entrenado). La sección~\ref{sec:bsc} concreta este paso en el BSC.
 \end{keybox}
 
 \section{Fase C: robustez frente a la partición}\label{sec:faseC}
@@ -242,10 +251,97 @@ particiones) y presentar los de la fase B como un caso concreto. El informe
 \ruta{docs/reports/variational-results.pdf} recoge todas las gráficas y tablas.
 \end{keybox}
 
+\section{Ejecución en hardware real: plan BSC (añadido el 20 de noviembre)}\label{sec:bsc}
+
+\textbf{Qué ofrece el BSC} (guía de acceso de la RES para recursos cuánticos, v3.3):
+\begin{itemize}
+  \item \textbf{MareNostrum5-Ona} tiene dos chips superconductores digitales, de 20 y 35 qubits. Cada uno va conectado
+        a un nodo de 40 CPU para el pre- y postprocesado.
+  \item Los trabajos se programan con \textbf{Qibo + Qililab}. Qililab es la librería de Qilimanjaro, el fabricante de
+        los chips, que traduce un circuito Qibo a pulsos sobre el chip. Nuestro circuito ya está en Qibo.
+  \item \textbf{La partición cuántica solo acepta trabajos que usen el chip.} Las simulaciones hay que pedirlas aparte
+        (MN5-GPP), en la misma solicitud.
+  \item La solicitud pide qubits, profundidad, shots, puertas y duración.
+  \item El acceso se concede por convocatoria de la RES: estándar (5 meses) o vía rápida, que exige un proyecto financiado.
+\end{itemize}
+\textbf{Qué se puede llevar al chip:} solo la línea variacional. QGD no es viable, porque sus puertas
+multicontroladas hacen el circuito demasiado profundo.
+
+\textbf{Hecho sin acceso} (fase 1; \estado{Implementado} y \estado{Validado} en simulación, 47 pruebas OK):
+\begin{itemize}
+  \item Transpilador propio (Qibo 0.1.11 no trae uno). Reubica los qubits, añade SWAPs donde el chip no tiene conexión
+        y descompone el circuito en puertas RX/RY/RZ/CZ. El resultado medido coincide exactamente con el circuito original.
+  \item Ejecución de circuitos por lotes, porque en el BSC el coste está dominado por cada conexión.
+  \item Un simulador que se comporta como el chip: solo acepta puertas nativas sobre qubits conectados, añade ruido y
+        error de lectura.
+  \item Calibración y corrección del error de lectura.
+  \item Inferencia de los checkpoints entrenados, ya probada en seco.
+  \item Scripts Slurm para MN5 y para Ona.
+  \item El adaptador de Qililab es todavía un \textbf{esqueleto}: falta la API concreta del BSC.
+\end{itemize}
+
+\begin{table}[H]
+\centering\small
+\caption{Datos técnicos para la solicitud (\ruta{docs/bsc/cost-estimates.md}). Las topologías del chip son \textbf{hipotéticas}.}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{4.6cm} >{\raggedright\arraybackslash}X}
+\toprule
+Concepto & Valor \\
+\midrule
+Qubits & 4 (se mide 1) \\
+Profundidad del circuito lógico & 25--26, con 11 CNOT \\
+Profundidad ya transpilada & 26--38 con conexiones en línea, anillo o rejilla (0--2 SWAPs); 65--68 si el chip tiene
+  forma de estrella (6 SWAPs) \\
+Shots & 1000 por circuito \\
+Inferencia de 8 modelos & 248 circuitos (Iris) y 1376 (Breast Cancer): como máximo 1,4 y 7,6\,h \\
+Entrenamiento corto en el chip & SPSA con minilotes, 3515 circuitos; secuencial con 10 barridos, 28\,165 \\
+Entrenar como en simulación (Adam) & 1,3 millones de circuitos en Breast Cancer: \textbf{no es viable} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+Los tiempos máximos usan la referencia de la guía (unos 20\,s por trabajo, contando cada circuito como un trabajo).
+Los tiempos con lotes son una suposición hasta poder medirlos.
+
+\begin{table}[H]
+\centering\small
+\caption{Plan por fases.}
+\begin{tabularx}{\linewidth}{c >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{3.2cm}}
+\toprule
+Fase & Contenido & Estado \\
+\midrule
+0 & Decisión del tutor y solicitud a la RES (Ona + MN5-GPP) & \estado{Propuesto} \\
+1 & Preparación sin acceso & \textbf{Hecho} (validado en simulación) \\
+2 & Puesta en marcha en el BSC: entorno, adaptador de Qililab y pruebas mínimas & Necesita acceso \\
+3 & H1: inferencia en el chip de los checkpoints de la fase C, pre-registrada. Mide el efecto real del hardware con
+    muy pocos circuitos & \estado{Propuesto} \\
+4 & H2 (opcional): entrenamiento corto en Iris con presupuesto fijo, secuencial frente a SPSA & \estado{Propuesto} \\
+5 & Documentación y capítulo de la memoria & \estado{Propuesto} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{keybox}[¿Se sale del alcance?]
+\begin{itemize}[leftmargin=*]
+  \item No en el tema: es justo el objetivo de preparar la ejecución en hardware real.
+  \item El riesgo está en los plazos: la convocatoria, la evaluación, la disponibilidad de los chips y la calibración.
+  \item La propuesta es que \textbf{el TFG no dependa del chip}. Si el acceso llega a tiempo, la memoria incluye
+        resultados en hardware (H1 y quizá H2). Si no llega, incluye la plataforma preparada para hardware y validada en simulación.
+\end{itemize}
+\end{keybox}
+
+\textbf{Preguntas para la tutoría:}
+\begin{enumerate}
+  \item ¿Entra el BSC en el TFG? ¿Con H1 solo, o también H2?
+  \item ¿Quién figura como responsable de la solicitud? ¿Hay un proyecto financiado para pedir la vía rápida?
+  \item ¿Hay contacto en el BSC o en Qilimanjaro para conocer la topología del chip, sus puertas nativas y la API de
+        Qililab antes de enviar la solicitud?
+  \item ¿Qué fecha de entrega tiene la memoria?
+\end{enumerate}
+
 \section{Fuentes en el repositorio}
 
 \begin{itemize}
-  \item \ruta{docs/TFG-technical-log.md}: secciones 28--34.
+  \item \ruta{docs/TFG-technical-log.md}: secciones 28--35.
+  \item \ruta{docs/bsc/README.md} y \ruta{docs/bsc/cost-estimates.md}: plan BSC y datos técnicos.
   \item \ruta{docs/experimental-protocol.md}: protocolo variacional.
   \item README de cada fase, en \ruta{results/variational/}:
   \begin{itemize}

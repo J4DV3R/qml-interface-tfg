@@ -1,6 +1,6 @@
 # Resumen para la tutoría: estado del TFG y decisiones pendientes
 
-**Fecha:** 12 de noviembre de 2026. **Base:** commits `dec0f0b`–`4424eb7` sobre `bc877bd` (secciones 30–34 de `docs/TFG-technical-log.md`). Versión PDF con figuras: `docs/reports/tutor-briefing-2026-11-12.pdf`; informe detallado de resultados: `docs/reports/variational-results.pdf`.
+**Fecha:** 12 de noviembre de 2026; **actualizado el 20 de noviembre** con el plan de ejecución en el BSC (sección 8). **Base:** commits `dec0f0b`–`52ce86c` sobre `bc877bd` (secciones 30–35 de `docs/TFG-technical-log.md`). Versión PDF con figuras: `docs/reports/tutor-briefing-2026-11-12.pdf`; informe detallado de resultados: `docs/reports/variational-results.pdf`.
 
 Estados usados: **Propuesto** (solo en plan), **Implementado** (código sin evaluar), **Validado** (prueba concreta superada) y **Evaluado** (experimento con resultados persistidos y analizados).
 
@@ -10,17 +10,22 @@ Estados usados: **Propuesto** (solo en plan), **Implementado** (código sin eval
 2. Si se acepta la **actualización modular** de QGD como sustituta del clipping, y con qué rejilla y qué `b/lr`.
 3. Qué significa «no híbrido» para el TFG: sin PyTorch, sin Adam, o actualización ejecutada como circuito.
 4. Qué resultados serán **oficiales** en la memoria.
+5. **Ejecución en hardware en el BSC** (sección 8):
+   - si entra en el TFG y con qué alcance (solo inferencia o también entrenamiento corto);
+   - quién figura como responsable de la solicitud a la RES;
+   - si hay un proyecto financiado que permita pedir acceso por la vía rápida (*fast-track*).
 
 ## 2. Estado en una tabla
 
 | Componente | Estado | Evidencia |
 |---|---|---|
-| QCNN de 4 qubits (codificación angular/fase, convolución, pooling lógico) | Validado | Pruebas unitarias; 124/124 OK el 12 de noviembre (antes de añadir las 3 pruebas de la fase C, que pasan por separado) |
+| QCNN de 4 qubits (codificación angular/fase, convolución, pooling lógico) | Validado | Pruebas unitarias: 124/124 OK el 12 de noviembre. Las pruebas añadidas después (fase C y plan BSC) pasan por separado |
 | Legado híbrido PyTorch + Adam | Evaluado (histórico, n = 3) | `results/initial-hybrid-adam/` |
 | QGD M1–M5 (actualización modular reversible) | Implementado y validado unitariamente; **no evaluado** | Log, secciones 28–30; auditoría |
 | Ruido local corregido (matriz de densidad, shots independientes) | Validado | Log, sección 30 |
 | Línea variacional (GD, Adam, SPSA, secuencial tipo Rotosolve/NFT) | **Evaluado en simulación** | `results/variational/` (log, secciones 31–34) |
-| Ejecución en hardware real (QPU) | Propuesto | No hay adaptador, transpilación ni ejecuciones |
+| Preparación para hardware (transpilación, ejecución por lotes, mitigación de lectura, simulador que imita el chip) | Implementado y validado en simulación | `docs/bsc/README.md`; log, sección 35; 47 pruebas OK |
+| Ejecución en hardware real (BSC, MareNostrum5-Ona) | Propuesto | Sin acceso ni ejecuciones; el adaptador de Qililab es un esqueleto |
 
 ## 3. Problemas encontrados y corregidos (auditoría independiente)
 
@@ -81,7 +86,7 @@ Llevar la actualización de pesos al circuito sin ningún paso clásico, por eje
 | **B. QGD como línea principal** | Fijar `b/lr` que muevan pesos, corregir la rejilla, decidir la política de decodificación y evaluar QGD con el mismo protocolo (pareado frente a la variacional) | Medio-alto: implementación y experimentos | Es probable que no supere a la línea variacional; la limitación 1 de la sección 5 persiste |
 | **C. Ambas, con comparación controlada** | A + una evaluación de QGD con una configuración que mueva pesos, con el mismo protocolo | Medio | Alcance mayor; requiere decidir antes la regla QGD |
 
-**Recomendación técnica:** opción **A**, o bien **C** si el tutor considera imprescindible una cifra de QGD. En ambos casos, una ejecución pequeña de la línea variacional en un proveedor de QPU (por ejemplo, inferencia de un checkpoint entrenado) sería el paso de mayor valor hacia el «hardware real».
+**Recomendación técnica:** opción **A**, o bien **C** si el tutor considera imprescindible una cifra de QGD. En ambos casos, el paso de mayor valor hacia el «hardware real» sería una ejecución pequeña de la línea variacional en un QPU, por ejemplo la inferencia de un checkpoint entrenado. La sección 8 concreta este paso en el BSC.
 
 ## 7. Fase C: robustez frente a la partición
 
@@ -121,9 +126,68 @@ Qué se mantiene y qué no:
   3. que el optimizador secuencial reduce el número de ejecuciones del circuito sin perder accuracy, lo que importa en hardware.
 - Esto refuerza la opción A. Para la memoria convendría tomar como oficiales los resultados de la fase C (varias particiones) y presentar los de las fases B como un caso concreto.
 
-## 8. Fuentes en el repositorio
+## 8. Ejecución en hardware real: plan BSC (añadido el 20 de noviembre)
 
-- `docs/TFG-technical-log.md`: secciones 28–34.
+**Qué ofrece el BSC** (guía de acceso de la RES para recursos cuánticos, v3.3):
+- **MareNostrum5-Ona** tiene dos chips superconductores digitales, de 20 y 35 qubits. Cada uno va conectado a un nodo de 40 CPU para el pre- y postprocesado.
+- Los trabajos se programan con **Qibo + Qililab**. Qililab es la librería de Qilimanjaro, el fabricante de los chips, que traduce un circuito Qibo a pulsos sobre el chip. Nuestro circuito ya está en Qibo.
+- **La partición cuántica solo acepta trabajos que usen el chip.** Las simulaciones hay que pedirlas aparte (MN5-GPP), en la misma solicitud.
+- La solicitud pide qubits, profundidad, shots, puertas y duración.
+- El acceso se concede por convocatoria de la RES: estándar (5 meses) o vía rápida, que exige un proyecto financiado.
+
+**Qué se puede llevar al chip:** solo la línea variacional. QGD no es viable, porque sus puertas multicontroladas hacen el circuito demasiado profundo.
+
+**Hecho sin acceso (fase 1; implementado y validado en simulación, 47 pruebas OK):**
+- Transpilador propio (Qibo 0.1.11 no trae uno). Reubica los qubits, añade SWAPs donde el chip no tiene conexión y descompone el circuito en puertas RX/RY/RZ/CZ. El resultado medido coincide exactamente con el circuito original.
+- Ejecución de circuitos por lotes, porque en el BSC el coste está dominado por cada conexión.
+- Un simulador que se comporta como el chip: solo acepta puertas nativas sobre qubits conectados, añade ruido y error de lectura.
+- Calibración y corrección del error de lectura.
+- Inferencia de los checkpoints entrenados, ya probada en seco.
+- Scripts Slurm para MN5 y para Ona.
+- El adaptador de Qililab es todavía un **esqueleto**: falta la API concreta del BSC.
+
+**Datos técnicos para la solicitud** (`docs/bsc/cost-estimates.md`; topologías de chip **hipotéticas**):
+
+| Concepto | Valor |
+|---|---|
+| Qubits | 4 (se mide 1) |
+| Profundidad del circuito lógico | 25–26, con 11 CNOT |
+| Profundidad ya transpilada | 26–38 con conexiones en línea, anillo o rejilla (0–2 SWAPs); 65–68 si el chip tiene forma de estrella (6 SWAPs) |
+| Shots | 1000 por circuito |
+| Inferencia de 8 modelos | 248 circuitos (Iris) y 1376 (Breast Cancer): como máximo 1,4 y 7,6 h |
+| Entrenamiento corto en el chip | SPSA con minilotes, 3515 circuitos; secuencial con 10 barridos, 28 165 |
+| Entrenar como en simulación (Adam) | 1,3 millones de circuitos en Breast Cancer: **no es viable** |
+
+Los tiempos máximos usan la referencia de la guía (unos 20 s por trabajo, contando cada circuito como un trabajo). Los tiempos con lotes son una suposición hasta poder medirlos.
+
+**Plan por fases:**
+
+| Fase | Contenido | Estado |
+|---|---|---|
+| 0 | Decisión del tutor y solicitud a la RES (Ona + MN5-GPP) | Propuesto |
+| 1 | Preparación sin acceso | **Hecho** (validado en simulación) |
+| 2 | Puesta en marcha en el BSC: entorno, adaptador de Qililab y pruebas mínimas | Necesita acceso |
+| 3 | H1: inferencia en el chip de los checkpoints de la fase C, pre-registrada. Mide el efecto real del hardware con muy pocos circuitos | Propuesto |
+| 4 | H2 (opcional): entrenamiento corto en Iris con presupuesto fijo, secuencial frente a SPSA | Propuesto |
+| 5 | Documentación y capítulo de la memoria | Propuesto |
+
+**¿Se sale del alcance?**
+- No en el tema: es justo el objetivo de preparar la ejecución en hardware real.
+- El riesgo está en los plazos: la convocatoria, la evaluación, la disponibilidad de los chips y la calibración.
+- La propuesta es que **el TFG no dependa del chip**:
+  - si el acceso llega a tiempo, la memoria incluye resultados en hardware (H1 y quizá H2);
+  - si no llega, incluye la plataforma preparada para hardware y validada en simulación.
+
+**Preguntas para la tutoría:**
+1. ¿Entra el BSC en el TFG? ¿Con H1 solo, o también H2?
+2. ¿Quién figura como responsable de la solicitud? ¿Hay un proyecto financiado para pedir la vía rápida?
+3. ¿Hay contacto en el BSC o en Qilimanjaro para conocer la topología del chip, sus puertas nativas y la API de Qililab antes de enviar la solicitud?
+4. ¿Qué fecha de entrega tiene la memoria?
+
+## 9. Fuentes en el repositorio
+
+- `docs/TFG-technical-log.md`: secciones 28–35.
+- `docs/bsc/README.md` y `docs/bsc/cost-estimates.md`: plan BSC y datos técnicos.
 - `docs/experimental-protocol.md`: protocolo variacional.
 - `results/variational/A-tuning-bc-exact/README.md`, `results/variational/B-confirm-bc/README.md`, `results/variational/B-confirm-iris/README.md` y `results/variational/C-partitions/README.md`.
 - `results/quantum-training/`: perfiles M5, con pesos que no se mueven.
