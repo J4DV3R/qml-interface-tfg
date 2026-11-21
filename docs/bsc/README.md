@@ -18,7 +18,7 @@ No se han podido leer de forma automática la página de Slurm del BSC ni la API
 
 | Fase | Contenido | Estado |
 |---|---|---|
-| 0 | Confirmar con el tutor y preparar la solicitud RES (Ona + MN5-GPP) | **Propuesto**. Hay datos técnicos en `cost-estimates.md`; falta redactar la solicitud |
+| 0 | Confirmar con el tutor y preparar la solicitud RES (Ona + MN5-GPP) | **Propuesto**. Borrador en `res-application-draft.md` (no enviado); datos técnicos en `cost-estimates.md` |
 | 1 | Preparación sin acceso: estimador, transpilador, ejecutor por lotes, mock ruidoso, mitigación de lectura, inferencia en seco, scripts Slurm | **Implementado y validado en simulación** |
 | 2 | Puesta en marcha en el BSC: entorno, runcard, adaptador Qililab y pruebas mínimas | Propuesto; necesita acceso |
 | 3 | H1: inferencia en el chip de checkpoints de la fase C (pre-registrada) | Propuesto |
