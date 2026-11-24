@@ -1,8 +1,16 @@
 # Resumen para la tutoría: estado del TFG y decisiones pendientes
 
-**Fecha:** 12 de noviembre de 2026; **actualizado el 20 de noviembre** con el plan de ejecución en el BSC (sección 8). **Base:** commits `dec0f0b`–`52ce86c` sobre `bc877bd` (secciones 30–35 de `docs/TFG-technical-log.md`). Versión PDF con figuras: `docs/reports/tutor-briefing-2026-11-12.pdf`; informe detallado de resultados: `docs/reports/variational-results.pdf`.
+**Fecha:** 12 de noviembre de 2026; actualizado el 20 de noviembre con el plan de ejecución en el BSC (sección 8) y **el 24 de noviembre** con el borrador de la solicitud RES y un hallazgo sobre la arquitectura del circuito (sección 9). **Base:** commits `dec0f0b`–`cbbf2a0` sobre `bc877bd` y el diagnóstico del 24 de noviembre (secciones 30–37 de `docs/TFG-technical-log.md`). Guía de fundamentos para preparar la reunión: `docs/reports/guia-fundamentos-tutoria.pdf`. Versión PDF con figuras: `docs/reports/tutor-briefing-2026-11-12.pdf`; informe detallado de resultados: `docs/reports/variational-results.pdf`.
 
 Estados usados: **Propuesto** (solo en plan), **Implementado** (código sin evaluar), **Validado** (prueba concreta superada) y **Evaluado** (experimento con resultados persistidos y analizados).
+
+## 0. Qué ha cambiado desde la última reunión
+
+1. **Auditoría independiente:** los resultados QGD previos no entrenaban (pesos inmóviles con `b=5`, `lr=0.1`), las pruebas de QGD eran vacuas y el ruido estaba mal simulado. Corregido y validado (sección 3).
+2. **Nueva línea variacional:** simulador rápido idéntico a Qibo y 4 optimizadores (GD, Adam, SPSA y secuencial). Fases A, B y C evaluadas en simulación; la fase C (10 particiones, 1280 entrenamientos, pre-registrada) es el resultado principal (secciones 4 y 7).
+3. **Preparación para el BSC sin acceso:** transpilador, ejecución por lotes, simulador que imita el chip, mitigación de lectura y borrador de la solicitud RES (sección 8).
+4. **Hallazgo del 24 de noviembre:** la salida del circuito actual ignora la cuarta característica y 3 de los 8 pesos, por dos CNOT que se anulan entre convolución y pooling (sección 9).
+5. **Documentación e informes:** log técnico (secciones 30–37), informe de resultados con figuras (`docs/reports/variational-results.pdf`) y suite completa de 138 pruebas OK.
 
 ## 1. Qué se necesita decidir
 
@@ -14,12 +22,13 @@ Estados usados: **Propuesto** (solo en plan), **Implementado** (código sin eval
    - si entra en el TFG y con qué alcance (solo inferencia o también entrenamiento corto);
    - quién figura como responsable de la solicitud a la RES;
    - si hay un proyecto financiado que permita pedir acceso por la vía rápida (*fast-track*).
+6. **Arquitectura del circuito** (sección 9): ¿se corrige la cancelación de CNOT y se repite la fase C (unas 7,5 h de CPU), o se mantiene el circuito actual y se documenta como un modelo de 3 características efectivas? Conviene decidirlo antes de enviar la solicitud RES y de escribir la memoria.
 
 ## 2. Estado en una tabla
 
 | Componente | Estado | Evidencia |
 |---|---|---|
-| QCNN de 4 qubits (codificación angular/fase, convolución, pooling lógico) | Validado | Pruebas unitarias: suite completa, 138/138 OK el 20 de noviembre |
+| QCNN de 4 qubits (codificación angular/fase, convolución, pooling lógico) | Validado; **la salida solo usa 3 características y 5 pesos** (sección 9) | Pruebas unitarias: suite completa, 138/138 OK el 20 de noviembre; `results/diagnostics/light-cone/` |
 | Legado híbrido PyTorch + Adam | Evaluado (histórico, n = 3) | `results/initial-hybrid-adam/` |
 | QGD M1–M5 (actualización modular reversible) | Implementado y validado unitariamente; **no evaluado** | Log, secciones 28–30; auditoría |
 | Ruido local corregido (matriz de densidad, shots independientes) | Validado | Log, sección 30 |
@@ -122,7 +131,7 @@ Qué se mantiene y qué no:
 **Lectura para la decisión de la sección 1:**
 - La línea variacional está evaluada de forma reproducible. Su resultado defendible no es «la QCNN supera al clásico», sino:
   1. que aprende, por encima de la clase mayoritaria;
-  2. que queda por debajo de una regresión logística con las mismas 4 características;
+  2. que queda por debajo de una regresión logística que recibe las mismas 4 características, aunque la salida del circuito solo use 3 (sección 9);
   3. que el optimizador secuencial reduce el número de ejecuciones del circuito sin perder accuracy, lo que importa en hardware.
 - Esto refuerza la opción A. Para la memoria convendría tomar como oficiales los resultados de la fase C (varias particiones) y presentar los de las fases B como un caso concreto.
 
@@ -164,7 +173,7 @@ Los tiempos máximos usan la referencia de la guía (unos 20 s por trabajo, cont
 
 | Fase | Contenido | Estado |
 |---|---|---|
-| 0 | Decisión del tutor y solicitud a la RES (Ona + MN5-GPP) | Propuesto |
+| 0 | Decisión del tutor y solicitud a la RES (Ona + MN5-GPP) | Borrador listo (`docs/bsc/res-application-draft.md`), no enviado |
 | 1 | Preparación sin acceso | **Hecho** (validado en simulación) |
 | 2 | Puesta en marcha en el BSC: entorno, adaptador de Qililab y pruebas mínimas | Necesita acceso |
 | 3 | H1: inferencia en el chip de los checkpoints de la fase C, pre-registrada. Mide el efecto real del hardware con muy pocos circuitos | Propuesto |
@@ -184,9 +193,41 @@ Los tiempos máximos usan la referencia de la guía (unos 20 s por trabajo, cont
 3. ¿Hay contacto en el BSC o en Qilimanjaro para conocer la topología del chip, sus puertas nativas y la API de Qililab antes de enviar la solicitud?
 4. ¿Qué fecha de entrega tiene la memoria?
 
-## 9. Fuentes en el repositorio
+## 9. Hallazgo: el circuito actual solo usa 3 características y 5 pesos (24 de noviembre)
 
-- `docs/TFG-technical-log.md`: secciones 28–35.
+**Estado: validado numéricamente** (`experiments/diagnose_light_cone.py`; `results/diagnostics/light-cone/`; log, sección 37).
+
+**Qué pasa:**
+- La convolución termina con `CNOT(derecha → izquierda)` y el pooling aplica `CNOT(descartado → conservado)`. Cuando el qubit descartado es el derecho del último par, las dos son **la misma CNOT, y dos CNOT seguidas se anulan**.
+- Ocurre con `CNOT(3,2)` en la capa 1 y con `CNOT(2,0)` en la capa 2.
+
+**Consecuencias:**
+
+| Elemento | ¿Influye en la predicción? |
+|---|---|
+| Características x0, x1, x2 | Sí |
+| Característica x3 (4.ª componente PCA en Breast Cancer; anchura del pétalo en Iris) | **No** |
+| Pesos de la capa 1 | Sí |
+| Peso w0 de la capa 2 | Sí (la capa 2 queda en una rotación de un qubit) |
+| Pesos w1, w2 y w3 de la capa 2 | **No** |
+
+- Afecta a todas las rutas (híbrida, QGD y variacional), porque comparten el circuito.
+- Los resultados evaluados siguen siendo válidos para *este* circuito, pero describen un modelo con 3 características y 5 parámetros efectivos.
+- **Hipótesis, no contrastada:** puede explicar en parte por qué la QCNN queda por debajo de la regresión logística.
+- **Coste** (no implementado): bastarían 15 circuitos por muestra en lugar de 33 (parameter-shift) y 19 en lugar de 40 (secuencial). En hardware, el circuito efectivo es de 3 qubits.
+
+**Opciones para decidir:**
+
+| Opción | Qué implica |
+|---|---|
+| Corregir el circuito (por ejemplo, un pooling con rotación controlada parametrizada) | Modelo nuevo: hay que repetir la fase C (unas 7,5 h de CPU en exacto), regenerar los informes y revisar la solicitud RES |
+| Mantenerlo | Documentar la limitación en la memoria, describir el modelo como de 3 características efectivas y, opcionalmente, podar el qubit 3 para el hardware |
+
+## 10. Fuentes en el repositorio
+
+- `docs/TFG-technical-log.md`: secciones 28–37.
+- `results/diagnostics/light-cone/README.md`: hallazgo del cono de luz.
+- `docs/bsc/res-application-draft.md`: borrador de la solicitud RES.
 - `docs/bsc/README.md` y `docs/bsc/cost-estimates.md`: plan BSC y datos técnicos.
 - `docs/experimental-protocol.md`: protocolo variacional.
 - `results/variational/A-tuning-bc-exact/README.md`, `results/variational/B-confirm-bc/README.md`, `results/variational/B-confirm-iris/README.md` y `results/variational/C-partitions/README.md`.

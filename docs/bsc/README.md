@@ -72,6 +72,14 @@ Se usaron 64 circuitos, 1000 shots, $p_{1q}=0{,}001$, $p_{2q}=0{,}01$ y error de
 - El error medio de $\langle Z\rangle$ frente al exacto baja de 0,11–0,13 (bruto) a 0,08–0,09 (mitigado).
 - Es una **prueba de funcionamiento con ruido supuesto**, no un resultado de hardware.
 
+## Efecto del hallazgo del cono de luz (24-nov, sección 37 del log)
+
+La salida del circuito actual no depende del qubit 3 ni de 3 de los 8 pesos.
+- **Si se mantiene el circuito:** el circuito efectivo tiene 3 qubits y menos puertas, y el coste por muestra bajaría de 33 a 15 circuitos (parameter-shift) y de 40 a 19 (secuencial). Ninguna de estas optimizaciones está implementada.
+- **Si se corrige la arquitectura:** cambian la profundidad, las puertas y el coste, y hay que regenerar `cost-estimates.md` y actualizar el borrador de la solicitud RES.
+
+Conviene decidirlo **antes** de enviar la solicitud.
+
 ## Pendiente para la fase 2
 
 - Implementar `QililabExecutor` con la API documentada por el BSC: runcard, conexión, ejecución por lotes, conversión a *counts* y metadatos de calibración.

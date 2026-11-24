@@ -132,7 +132,7 @@ La codificación angular tiene mayor accuracy media que la de fase con los cuatr
 
 1. **El orden de los optimizadores depende de la partición.** Las diferencias de accuracy de las fases B no se mantienen como efectos significativos con 10 particiones. GD > Adam en Iris (O1) era propio de la partición 42.
 2. **El hallazgo robusto es de coste, no de accuracy.** El secuencial alcanza el mismo nivel que Adam con 3,2–9,4 veces menos circuitos hasta el checkpoint (en las 40 comparaciones partición × caso), Con P = 10 mantiene la accuracy (diferencia ≥ −0,006) usando el 14–19 % de los circuitos de sus 100 pasos.
-3. **La QCNN de 4 qubits no alcanza a una regresión logística** sobre las mismas 4 características. La conclusión de las fases B («a la altura de la logística») era optimista por la partición.
+3. **La QCNN de 4 qubits no alcanza a una regresión logística** sobre las mismas 4 características. *Nota del 24 de noviembre (log, sección 37):* la salida de este circuito no depende de la cuarta característica ni de 3 de los 8 pesos, porque dos CNOT se anulan entre convolución y pooling; el modelo evaluado usa 3 características efectivas. La conclusión de las fases B («a la altura de la logística») era optimista por la partición.
 4. La codificación angular es, en media, mejor que la de fase en ambos datasets. Formalmente solo está contrastada para Adam en Breast Cancer (O3, Holm p = 0,074).
 
 **Limitaciones.**

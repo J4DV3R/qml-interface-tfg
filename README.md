@@ -196,6 +196,16 @@ Informes PDF con figuras y tablas derivadas de los JSON, en
 `tutor-briefing-2026-11-12.pdf`. Se regeneran con
 `experiments/plot_variational_report.py`.
 
+## Hallazgo: la QCNN actual solo usa 3 características y 5 pesos
+
+`experiments/diagnose_light_cone.py` (validado numéricamente; sección 37 del
+log; [`results/diagnostics/light-cone/README.md`](results/diagnostics/light-cone/README.md))
+muestra que la salida no depende de la característica x3 ni de los pesos
+w1-w3 de la capa 2. La convolución termina en `CNOT(derecha→izquierda)` y el
+pooling repite esa misma CNOT, de modo que se anulan. Afecta a todas las rutas
+(híbrida, QGD y variacional). Corregirlo cambia el modelo; la decisión está
+pendiente de la tutoría.
+
 ## Preparación para hardware: plan BSC (fase 1, sin acceso)
 
 Plan para ejecutar la línea variacional en MareNostrum5-Ona (BSC: chips de 20

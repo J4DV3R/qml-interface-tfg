@@ -27,6 +27,13 @@ persistidos en \ruta{results/variational/} mediante \ruta{experiments/plot\_vari
 \end{enumerate}
 \end{keybox}
 
+\begin{warnbox}[Nota posterior (24 de noviembre): el circuito solo usa 3 características y 5 pesos]
+Un diagnóstico posterior (\ruta{results/diagnostics/light-cone/}; log, sección 37) muestra que la salida de este
+circuito no depende de la cuarta característica ni de los pesos $w_1$--$w_3$ de la segunda capa. Dos CNOT idénticas
+entre convolución y pooling se anulan. Las cifras de este informe son válidas para este circuito, pero describen un
+modelo con 3 características y 5 parámetros efectivos. Corregir la arquitectura es una decisión pendiente.
+\end{warnbox}
+
 \section{Modelo y protocolo}
 
 \subsection{Modelo}
@@ -297,7 +304,8 @@ parar. Es una ventaja menor que la de O4, porque aquí se cuenta también lo que
 \begin{keybox}[Qué se puede afirmar]
 \begin{enumerate}[leftmargin=*]
   \item La QCNN variacional aprende ambos problemas: supera a la clase mayoritaria en todas las particiones.
-  \item Con las mismas 4 características, \textbf{no alcanza a una regresión logística}.
+  \item Con las mismas 4 características de entrada, \textbf{no alcanza a una regresión logística}. La salida del
+        circuito solo depende de 3 de ellas (nota del 24 de noviembre).
   \item \textbf{El orden de los optimizadores en accuracy depende de la partición}; no hay diferencias significativas tras Holm.
   \item \textbf{El hallazgo robusto es de coste}: el optimizador secuencial reduce las ejecuciones del circuito sin perder accuracy.
 \end{enumerate}

@@ -1250,3 +1250,25 @@ Revisión de los commits `25a0e69`, `52ce86c` y `b9499d0`, que aún no estaban e
 - `docs/experimental-protocol.md` decía que el benchmark variacional no se había ejecutado. Ahora remite a las fases A–C y añade el protocolo propuesto de inferencia en hardware (H1).
 - `AGENTS.md` actualiza el conteo de pruebas y añade al mapa `docs/reports/`, `docs/bsc/` y el resumen para la tutoría, además de una limitación sobre la preparación BSC.
 - `README.md`, `docs/bsc/README.md` y el resumen para la tutoría (Markdown y PDF) actualizan el conteo de pruebas.
+
+## 37. Hallazgo: cono de luz de la QCNN, solo 3 características y 5 pesos efectivos (24 de noviembre de 2026)
+
+**Estado: validado numéricamente** con `experiments/diagnose_light_cone.py` (40 entradas y pesos aleatorios por codificación, semilla 2026). Detalle en `results/diagnostics/light-cone/README.md`.
+
+**Resultado, igual con ambas codificaciones:**
+- La salida ⟨Z⟩ del qubit 0 no depende de la característica x3 ni de los pesos w1, w2 y w3 de la capa 2.
+- Solo 7 de las 16 apariciones de pesos contribuyen al gradiente.
+- El simulador rápido y el constructor de Qibo coinciden (≤ 7e-16).
+
+**Causa:** la convolución termina con `CNOT(derecha → izquierda)` y el pooling aplica `CNOT(descartado → conservado)`. Cuando coinciden, la puerta se repite y se anula (CNOT² = I).
+- Ocurre con `CNOT(3,2)` en la capa 1 y con `CNOT(2,0)` en la capa 2.
+- Tras la cancelación, la capa 2 se reduce a `RY(w0)` sobre el qubit 0, y el par (2,3) de la capa 1 queda fuera del cono de luz de la medida.
+
+**Alcance:**
+- Afecta a todas las rutas: híbrida (`src/hybrid_model.py` usa `qcnn_engine`), QGD y variacional.
+- Los resultados evaluados siguen siendo válidos para este circuito, pero describen un modelo con 3 características y 5 parámetros efectivos.
+- Que esto explique la distancia a la regresión logística es una hipótesis no contrastada.
+
+**Consecuencias de coste** (no implementadas): 15 circuitos por muestra en lugar de 33 con parameter-shift; 19 en lugar de 40 con el optimizador secuencial; un circuito efectivo de 3 qubits para hardware.
+
+**Pendiente:** decisión de la tutoría sobre si corregir la arquitectura antes de la memoria y de la solicitud RES. Una corrección, por ejemplo un pooling con rotación controlada parametrizada, cambia el modelo y obliga a repetir la fase C (unas 7,5 h de CPU en exacto).

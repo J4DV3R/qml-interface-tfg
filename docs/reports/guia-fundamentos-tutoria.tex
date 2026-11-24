@@ -1,0 +1,418 @@
+\documentclass[11pt,a4paper]{article}
+\input{report-preamble}
+\usepackage{amssymb}
+\usepackage{quantikz}
+\fancyhead[L]{\small\color{inkmuted}Guía de fundamentos para la tutoría}
+\fancyhead[R]{\small\color{inkmuted}24 de noviembre de 2026}
+
+\title{\textbf{Guía de fundamentos y preparación de la tutoría}\\[2pt]
+\large Qué contar, qué decidir y la teoría detrás de cada cambio}
+\author{TFG «Plataforma para la experimentación con Quantum Machine Learning»}
+\date{24 de noviembre de 2026 · documento de estudio personal (no es parte de la memoria)\\
+\small Los ejemplos numéricos se han calculado con el código y los JSON del repositorio}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+\tableofcontents
+
+\part{Preparar la reunión}
+
+\section{Guion de un minuto}
+
+\begin{keybox}[Para abrir la reunión]
+«Desde la última reunión, una auditoría encontró que \textbf{los resultados de QGD no eran válidos}: con la
+configuración usada los pesos nunca se movían, y el ruido estaba mal simulado. Lo he corregido. Después monté una
+\textbf{línea variacional} con un protocolo riguroso y la evalué en simulación con 1280 entrenamientos sobre 10
+particiones de datos. La QCNN aprende, pero queda \textbf{por debajo de una regresión logística}; \textbf{ningún
+optimizador gana en accuracy}, y el \textbf{secuencial necesita entre 3 y 9 veces menos circuitos}.
+
+He preparado la ejecución en el \textbf{BSC} sin tener acceso todavía y tengo un borrador de la solicitud a la RES.
+Además, al calcular costes he descubierto que \textbf{el circuito actual ignora la cuarta característica y 3 de los 8
+pesos}, porque dos CNOT se anulan. Necesito que decidamos varias cosas, entre ellas si lo corregimos.»
+\end{keybox}
+
+\section{Qué he hecho desde la última reunión}
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{c >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{3.1cm}}
+\toprule
+\# & Trabajo & Estado \\
+\midrule
+1 & Auditoría: QGD no movía pesos, pruebas vacuas, 3 defectos de ruido en Qibo 0.1.11, M5 en Iris por debajo de la clase mayoritaria & Corregido y validado \\
+2 & Simulador rápido (idéntico a Qibo, unas 76 veces más rápido) y 4 optimizadores & Validado \\
+3 & Fase A: ajuste de hiperparámetros solo con validation & Evaluado \\
+4 & Fase B: partición 42 de Breast Cancer e Iris; exacto, shots, ruido y mismo coste & Evaluado \\
+5 & Fase C: 10 particiones, pre-registrada, con Holm. \textbf{Resultado principal} & Evaluado \\
+6 & Preparación BSC: transpilador, lotes, simulador que imita el chip, mitigación de lectura & Validado en simulación \\
+7 & Borrador de la solicitud RES (40\,h en Ona, 2000 horas-núcleo en MN5-GPP) & Borrador, no enviado \\
+8 & Diagnóstico del cono de luz: la salida ignora $x_3$ y 3 pesos & Validado numéricamente \\
+9 & Informes PDF, log técnico (secciones 30--37), 138 pruebas OK & Hecho \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Decisiones que tienes que pedir}
+
+\begin{enumerate}
+  \item \textbf{Línea principal} de la memoria. Recomendación: la variacional, con QGD como prototipo documentado (opción A).
+  \item ¿Se acepta la \textbf{actualización modular} de QGD en lugar del clipping? (sección~\ref{sec:qgd}).
+  \item ¿Qué significa \textbf{«no híbrido»} para el TFG?
+  \item ¿Qué resultados son \textbf{oficiales}? Propuesta: los de la fase C.
+  \item \textbf{BSC}: ¿entra en el TFG?, ¿con qué alcance?, ¿quién firma la solicitud?, ¿hay un proyecto financiado?,
+        ¿hay algún contacto para conocer la topología del chip?
+  \item \textbf{Arquitectura}: ¿se corrige la cancelación de CNOT y se repite la fase C (unas 7,5\,h de CPU), o se
+        mantiene el circuito y se documenta la limitación? (sección~\ref{sec:cono}).
+\end{enumerate}
+
+\section{Preguntas probables y cómo responderlas}
+
+\begin{description}[style=nextline,leftmargin=0.6cm]
+\item[¿Por qué la QCNN pierde contra una regresión logística?]
+  Hay tres motivos posibles.
+  \begin{itemize}
+    \item El modelo es pequeño: 8 parámetros nominales y, en realidad, 5 efectivos.
+    \item La salida solo usa 3 de las 4 características (sección~\ref{sec:cono}).
+    \item Los datos son casi linealmente separables, justo el caso en que un modelo lineal es fuerte.
+  \end{itemize}
+  Que el hallazgo explique la diferencia es una \emph{hipótesis}, no algo comprobado; se comprobaría corrigiendo el
+  circuito y repitiendo la fase C. Que no se espere ventaja cuántica en datasets clásicos pequeños es una afirmación
+  de la literatura que todavía no tiene referencia verificada.
+  Evidencia: \ruta{results/variational/C-partitions/analysis.md}.
+
+\item[¿Por qué no llevar QGD al chip?]
+  El gradiente entra como dato clásico y el peso se mide y vuelve al ordenador. El circuito solo hace una suma que el
+  ordenador hace gratis, y la hace con puertas multicontroladas de hasta $2b$ qubits, que serían muy profundas en
+  hardware. Además, ninguna ejecución QGD ha movido los pesos todavía (sección~\ref{sec:qgd}).
+
+\item[¿Son concluyentes 10 particiones?]
+  Para las diferencias de accuracy entre optimizadores, no: ninguna sobrevive a Holm. Para el ahorro de circuitos del
+  secuencial, sí: aparece en las 40 combinaciones (Holm $p=0{,}014$). Las particiones comparten muestras, así que la
+  variación entre ellas mide la sensibilidad a la partición, no la incertidumbre ante datos nuevos.
+
+\item[¿Qué aporta el optimizador secuencial?]
+  Reconstruye exactamente cómo depende el coste de cada peso y salta al mínimo, sin tasa de aprendizaje
+  (sección~\ref{sec:secuencial}). Llega al mismo nivel que Adam con entre 3,2 y 9,4 veces menos circuitos, y en
+  hardware el coste se mide en circuitos.
+
+\item[¿Por qué la codificación angular funciona mejor?]
+  Es un resultado descriptivo: no se ha contrastado la causa. Solo el caso Breast Cancer con Adam (O3) se contrastó
+  formalmente, y no supera a Holm ($p=0{,}074$).
+
+\item[¿El ruido cambia los resultados?]
+  Con 1000 shots y ruido de sensibilidad ($p=0{,}001$, lectura del 2\,\%), la accuracy apenas cambia, pero solo se
+  midió en la partición 42 y el ruido no está calibrado con un chip real. Para eso sirve el experimento H1 en el BSC.
+
+\item[¿Cómo descubriste lo del cono de luz y por qué no antes?]
+  Calculando un ejemplo de la reconstrucción del optimizador secuencial vi que algunos pesos necesitaban menos puntos
+  de los esperados. Las pruebas existentes comprobaban que el circuito era idéntico en Qibo y en el simulador rápido,
+  pero no a qué entradas es sensible.
+
+\item[¿Qué harías si lo corregimos?]
+  Cambiaría el pooling (por ejemplo, por una rotación controlada parametrizada), añadiría una prueba que exija que las
+  4 características y todos los pesos influyan, repetiría la fase C (unas 7,5\,h de CPU), regeneraría los informes y
+  revisaría la solicitud RES.
+\end{description}
+
+\part{Fundamentos}
+
+\section{Qubit, medida y valor esperado}
+
+Un bit vale 0 o 1. Un \textbf{qubit} es un vector unitario de $\mathbb{C}^2$:
+\[
+  \ket{\psi} = \alpha\ket{0} + \beta\ket{1}, \qquad |\alpha|^2 + |\beta|^2 = 1 .
+\]
+No se puede leer $(\alpha, \beta)$ directamente. Al \textbf{medir} se obtiene 0 con probabilidad $|\alpha|^2$ y 1 con
+probabilidad $|\beta|^2$, y el estado se pierde. Para un programador, es un generador aleatorio cuya distribución
+controlas con las operaciones previas.
+
+\textbf{Valor esperado de $Z$.} Es el número que usa nuestro modelo:
+\[
+  \langle Z\rangle = P(0) - P(1) \in [-1, 1].
+\]
+La predicción es $+1$ si $\langle Z\rangle \ge 0$ y $-1$ en caso contrario.
+
+\textbf{Shots.} Cada medida da un solo bit, así que para estimar $\langle Z\rangle$ se repite el circuito $N$ veces y se
+cuenta. La desviación típica del estimador es
+\[
+  \sigma = \sqrt{\frac{1 - \langle Z\rangle^2}{N}} .
+\]
+\emph{Ejemplo:} con $\langle Z\rangle = 0{,}477$ y $N = 1000$ shots, $\sigma \approx 0{,}028$. Una muestra con
+$\langle Z\rangle$ cerca de 0 puede cambiar de clase solo por el ruido estadístico.
+
+\textbf{Varios qubits.} El estado de $n$ qubits es un vector de $2^n$ amplitudes, una por cada cadena de bits. Simular
+4 qubits son 16 números; cada qubit más duplica el coste. Por eso simular nuestra QCNN es trivial, y simular 50 qubits,
+imposible.
+
+\section{Puertas y circuitos}
+
+Una \textbf{puerta} es una matriz unitaria ($U^\dagger U = I$): conserva la norma y \textbf{es reversible}. Un
+\textbf{circuito} es un producto de matrices aplicado de izquierda a derecha en el dibujo.
+
+\begin{itemize}
+  \item $R_Y(\theta)$ gira el qubit. Desde $\ket{0}$:
+        $R_Y(\theta)\ket{0} = \cos\tfrac{\theta}{2}\ket{0} + \sin\tfrac{\theta}{2}\ket{1}$, y por tanto
+        $\langle Z\rangle = \cos\theta$.
+  \item $R_Z(\theta)$ cambia la \textbf{fase} relativa entre $\ket{0}$ y $\ket{1}$. Es diagonal, así que \textbf{no
+        cambia las probabilidades de medir en la base $Z$}: solo importa si después hay puertas que mezclen
+        $\ket{0}$ y $\ket{1}$.
+  \item $H$ (Hadamard) lleva $\ket{0}$ a $(\ket{0} + \ket{1})/\sqrt{2}$, una superposición 50/50.
+  \item $\mathrm{CNOT}(c \to t)$ invierte el qubit $t$ si $c = 1$. Tres propiedades clave para este trabajo:
+  \begin{enumerate}
+    \item $\mathrm{CNOT}\cdot\mathrm{CNOT} = I$: aplicada dos veces seguidas no hace nada.
+    \item \textbf{No cambia la distribución de $Z$ del qubit de control}, porque el control solo «decide», no se modifica.
+    \item Crea \textbf{entrelazamiento}: $H$ en $q_0$ seguida de $\mathrm{CNOT}(0\to1)$ produce
+          $(\ket{00} + \ket{11})/\sqrt{2}$, cuyos resultados están perfectamente correlacionados aunque cada qubit por
+          separado sea aleatorio. Sin puertas de dos qubits, el modelo serían 4 clasificadores independientes.
+  \end{enumerate}
+  \item $\mathrm{CZ}$ aplica un signo $-1$ cuando ambos qubits valen 1. Es la puerta de dos qubits habitual en chips
+        superconductores. Se cumple
+        $\mathrm{CNOT}(c\to t) = R_Y^{(t)}(\pi/2)\,\mathrm{CZ}\,R_Y^{(t)}(-\pi/2)$, igualdad que nuestro
+        transpilador usa y que una prueba verifica.
+\end{itemize}
+
+\section{Codificación de los datos}
+
+Cada muestra tiene 4 características normalizadas en $[0,1]$, una por qubit:
+\begin{itemize}
+  \item \textbf{Angular:} $R_Y(\pi x)$. Lleva $x=0$ a $\ket{0}$ ($\langle Z\rangle=+1$) y $x=1$ a $\ket{1}$
+        ($\langle Z\rangle=-1$): el dato queda en las probabilidades.
+  \item \textbf{Fase:} $H$ y después $R_Z(2\pi x)$. El dato queda en la fase relativa, invisible al medir hasta que una
+        puerta posterior (las $R_Y$ de la convolución) lo convierte en diferencia de probabilidades.
+\end{itemize}
+
+\section{La QCNN del proyecto}
+
+Es la analogía cuántica de una red convolucional:
+\begin{itemize}
+  \item \textbf{Convolución:} el mismo bloque de puertas, con 4 ángulos, se aplica a cada par de qubits vecinos. Son
+        \emph{pesos compartidos}, como un filtro que se desliza por una imagen. Los 4 ángulos son: $R_Y$ y $R_Z$
+        sobre el qubit izquierdo (bloque $A$), $\mathrm{CNOT}(\text{izq.}\to\text{der.})$, $R_Y$ y $R_Z$ sobre el
+        derecho (bloque $B$) y $\mathrm{CNOT}(\text{der.}\to\text{izq.})$.
+  \item \textbf{Pooling:} $\mathrm{CNOT}(\text{descartado}\to\text{conservado})$. Se conservan los qubits pares (de 4
+        quedan 2 y después 1). Es un pooling \emph{lógico}: el qubit descartado sigue en el registro, pero no se vuelve a usar.
+  \item \textbf{Salida:} $\langle Z\rangle$ del qubit 0. En total, 2 capas $\times$ 4 ángulos = 8 parámetros; cada
+        peso de la capa 1 aparece 3 veces y cada peso de la capa 2, una.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{quantikz}[column sep=0.18cm, row sep=0.3cm]
+\lstick{$q_0$} & \gate{E} & \gate{A} & \ctrl{1} & & \targ{} & & & & & & & & & \targ{} & \gate{A'} & \ctrl{2} & & \targ{}\gategroup[3,steps=2,style={dashed,rounded corners,draw=red},label style={label position=above,anchor=south,yshift=0.05cm}]{\color{red}se anulan} & \targ{} & \meter{} \\
+\lstick{$q_1$} & \gate{E} & & \targ{} & \gate{B} & \ctrl{-1} & \gate{A} & \ctrl{1} & & \targ{} & & & & & \ctrl{-1} & & & & & & \\
+\lstick{$q_2$} & \gate{E} & & & & & & \targ{} & \gate{B} & \ctrl{-1} & \gate{A} & \ctrl{1} & & \targ{}\gategroup[2,steps=2,style={dashed,rounded corners,draw=red},label style={label position=below,anchor=north,yshift=-0.15cm}]{\color{red}se anulan} & \targ{} & & \targ{} & \gate{B'} & \ctrl{-2} & \ctrl{-2} & \\
+\lstick{$q_3$} & \gate{E} & & & & & & & & & & \targ{} & \gate{B} & \ctrl{-1} & \ctrl{-1} & & & & & &
+\end{quantikz}}
+\caption{QCNN de 4 qubits tal como se construye. $E$: codificación; $A$/$B$: rotaciones $R_Z R_Y$ de la convolución
+(capa 1 sin prima, capa 2 con prima). Columnas 3--13: convolución de la capa 1 sobre los pares (0,1), (1,2) y (2,3);
+columna 14: pooling 1, $\mathrm{CNOT}(1\to0)$ y $\mathrm{CNOT}(3\to2)$; después, convolución de la capa 2 sobre
+(0,2), pooling 2 y medida. En rojo, las parejas de CNOT idénticas que se anulan.}
+\end{figure}
+
+\section{Cono de luz: por qué el circuito ignora una característica}\label{sec:cono}
+
+\textbf{Idea.} Una puerta solo puede afectar a una medida si está en su \emph{cono de luz}: el conjunto de puertas
+desde las que la información puede «viajar» hasta el qubit medido. Si una puerta está fuera, cambiar su ángulo no cambia
+la salida.
+
+\textbf{Qué ocurre en nuestro circuito} (validado: \ruta{results/diagnostics/light-cone/}):
+\begin{enumerate}
+  \item La convolución del par (2,3) termina en $\mathrm{CNOT}(3\to2)$, y el pooling aplica otra vez
+        $\mathrm{CNOT}(3\to2)$, porque el descartado es el qubit 3 y el conservado el 2. La $\mathrm{CNOT}(1\to0)$
+        intermedia actúa sobre otros qubits y conmuta, así que \textbf{las dos se anulan}. La información de $q_3$ nunca
+        llega a $q_2$.
+  \item En la capa 2 pasa lo mismo con $\mathrm{CNOT}(2\to0)$ (convolución) y $\mathrm{CNOT}(2\to0)$ (pooling).
+  \item Tras eso, $q_0$ solo recibe $R_Y(w'_0)$ y $R_Z(w'_1)$ y actúa como \emph{control} de $\mathrm{CNOT}(0\to2)$. El
+        control no cambia su distribución de $Z$, y $R_Z$ es diagonal (no cambia probabilidades), así que \textbf{solo
+        $w'_0$ importa}: la capa 2 queda en una rotación de un qubit.
+  \item $q_2$ solo influye en $q_0$ a través del par (1,2) de la capa 1, y ese par se aplica \emph{antes} del par (2,3).
+        Por eso $x_3$, que solo entra por $q_3$, no tiene ningún efecto.
+\end{enumerate}
+
+\begin{table}[H]
+\centering\small
+\caption{Cambio máximo de la salida al modificar cada elemento (40 entradas y pesos aleatorios, codificación angular).}
+\begin{tabular}{lcc}
+\toprule
+Elemento & Cambio máximo de $\langle Z\rangle$ & ¿Influye? \\
+\midrule
+$x_0$, $x_1$, $x_2$ & 0,81 / 0,84 / 1,11 & Sí \\
+$x_3$ & 0 & \textbf{No} \\
+Pesos de la capa 1 ($w_0$--$w_3$) & $> 0$ & Sí \\
+$w'_0$ (capa 2) & $> 0$ & Sí \\
+$w'_1$, $w'_2$, $w'_3$ (capa 2) & 0 & \textbf{No} \\
+Apariciones con gradiente & 7 de 16 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Por qué importa.}
+\begin{itemize}
+  \item Los resultados describen un modelo con 3 características y 5 parámetros efectivos.
+  \item Se gastan circuitos en derivadas que siempre valen 0.
+  \item El modelo no se comporta como lo hemos descrito hasta ahora.
+\end{itemize}
+Una corrección típica es que el pooling no repita la CNOT; por ejemplo, una rotación controlada parametrizada, como en
+la QCNN de la literatura (referencia pendiente de verificar).
+
+\section{Entrenamiento variacional}
+
+El circuito es una función $f(x;\theta)$, y la pérdida es el error cuadrático medio
+$L(\theta) = \frac{1}{n}\sum_i \bigl(f(x_i;\theta) - y_i\bigr)^2$ con $y_i\in\{-1,+1\}$. El chip solo evalúa $f$; el
+cálculo de $L$ y la actualización de $\theta$ se hacen en el ordenador. A esto se le llama algoritmo
+\textbf{variacional}, y es el modelo estándar en el hardware actual. Es híbrido por definición.
+
+\subsection{Parameter-shift: el gradiente exacto}
+
+Si se fija todo salvo un ángulo que aparece una sola vez, la salida tiene la forma
+$f(\theta) = a + b\cos\theta + c\sin\theta$, porque una rotación es $\cos(\theta/2)I - i\sin(\theta/2)G$ y aparece dos
+veces (en el estado y en su conjugado). Derivando:
+\[
+  f'(\theta) = \frac{f(\theta + \pi/2) - f(\theta - \pi/2)}{2}.
+\]
+Parece una diferencia finita, pero es \textbf{exacta} para cualquier tamaño de paso: no es una aproximación.
+
+\emph{Ejemplo con nuestro modelo} (checkpoint de la fase C, Iris, partición 1, secuencial angular; primera muestra de
+test): para el peso $w'_0 = -0{,}7482$, $f(w'_0 + \pi/2) = -0{,}2030$ y $f(w'_0 - \pi/2) = +0{,}2030$, de modo que
+el parameter-shift da $-0{,}20297$; una derivada numérica con $h = 10^{-6}$ da $-0{,}20297$.
+
+Si un peso aparece $R$ veces, se desplaza cada aparición por separado y se suman las contribuciones. Coste:
+4 pesos $\times$ 3 apariciones + 4 $\times$ 1 = 16 apariciones; a 2 evaluaciones cada una, más la evaluación normal,
+salen \textbf{33 circuitos por muestra y paso}. Con el hallazgo del cono de luz, solo 7 apariciones contribuyen: bastarían 15.
+
+\subsection{GD y Adam}
+\textbf{GD}: $\theta \leftarrow \theta - \eta\nabla L$. \textbf{Adam} añade una media móvil del gradiente (inercia) y de
+su cuadrado (paso adaptativo por parámetro): es el mismo Adam de deep learning. Ambos usan el gradiente por parameter-shift.
+
+\subsection{SPSA}
+Perturba \emph{todos} los parámetros a la vez en una dirección aleatoria $\Delta\in\{-1,+1\}^8$:
+\[
+  \hat g = \frac{L(\theta + c\Delta) - L(\theta - c\Delta)}{2c}\,\Delta .
+\]
+Cuesta \textbf{2 circuitos por muestra y paso}, haya 8 parámetros o 8000. El gradiente es ruidoso, pero en promedio
+apunta bien. Las ganancias $a_k = a/(k+1+A)^{0{,}602}$ y $c_k = c/(k+1)^{0{,}101}$ decrecen con el paso; por eso con
+100 pasos SPSA puede quedarse corto.
+
+\subsection{Optimizador secuencial (tipo Rotosolve/NFT)}\label{sec:secuencial}
+Si un peso aparece $R$ veces, $f$ en ese peso es un \textbf{polinomio trigonométrico de grado $R$}:
+$a_0 + \sum_{k=1}^{R}(a_k\cos k\theta + b_k\sin k\theta)$, con $2R+1$ incógnitas. Por tanto:
+\begin{enumerate}
+  \item se evalúa el circuito en $2R+1$ ángulos (7 para la capa 1, 3 para la capa 2);
+  \item se resuelve el sistema lineal y se obtiene la función exacta;
+  \item se salta a su mínimo (buscado en una rejilla de 2048 puntos) y se pasa al siguiente peso.
+\end{enumerate}
+Un barrido por los 8 pesos cuesta $4\cdot7 + 4\cdot3 = $ \textbf{40 circuitos por muestra}, sin tasa de aprendizaje
+que ajustar. Cada paso avanza mucho más que un paso de gradiente: por eso llega antes.
+
+\emph{Ejemplo:} en nuestro circuito, los pesos $R_Y$ de la capa 1 tienen grado efectivo 2 (bastan 5 puntos), los
+$R_Z$ de la capa 1 y $w'_0$ grado 1, y $w'_1$--$w'_3$ son constantes. Con el grado efectivo bastarían 19 circuitos por
+barrido en lugar de 40 (cono de luz).
+
+\section{QGD: actualización de pesos dentro del circuito}\label{sec:qgd}
+
+\textbf{Idea.} Representar cada peso y cada gradiente como enteros de $b$ bits en registros de qubits y hacer
+$w \leftarrow w - \eta\, g$ con un circuito de aritmética reversible.
+
+\textbf{Por qué no se movían los pesos (cuantización).} Con $b=5$ hay $2^5 = 32$ niveles en $[-\pi,\pi]$, separados
+$2\pi/31 \approx 0{,}203$\,rad. Con $\eta = 0{,}1$ y $|g| \le 1$, el desplazamiento máximo es $0{,}1$\,rad, es decir,
+$0{,}49$ escalones. Redondeado al entero más cercano \textbf{siempre da 0}: ninguno de los 32 códigos de gradiente
+mueve el peso. Con $\eta = 0{,}25$ se moverían 20 de los 32 códigos.
+
+\textbf{Por qué modular y no clipping.} Un circuito cuántico debe ser reversible: dos entradas distintas no pueden dar la
+misma salida (técnicamente, la operación es una permutación de las cadenas de bits). El \emph{clipping} lleva
+$\pi - 0{,}1$ y $\pi$ al mismo valor $\pi$, así que no es reversible. La suma módulo $2^b$ (como el desbordamiento de un
+entero) sí lo es. Por eso se implementó así, aunque se aparte del plan original.
+
+\textbf{Limitación de fondo.} El gradiente se calcula fuera, entra como dato clásico, y el peso se mide y vuelve al
+ordenador. El circuito hace una suma que el ordenador hace gratis, con puertas multicontroladas de hasta $2b$ qubits que
+en hardware serían muy profundas y ruidosas.
+
+\section{Ruido y cómo se simula}
+
+\textbf{Ruido depolarizante.} Tras cada puerta, con probabilidad $p$ el qubit «olvida» su estado:
+$\rho \to (1-p)\rho + p\,I/2$. Hace que $\langle Z\rangle$ se acerque a 0.
+
+\textbf{Matriz de densidad.} Cuando hay ruido, el estado es una \emph{mezcla} de estados puros con ciertas
+probabilidades. Se representa con una matriz $\rho$ de tamaño $2^n\times2^n$; las probabilidades de medida son su
+diagonal. Es exacta, pero cuesta el cuadrado que el vector de estado: es lo que hizo caros los entrenamientos con ruido
+(unas 22\,h de CPU por partición en Breast Cancer).
+
+\textbf{Los defectos de Qibo 0.1.11 que se evitan.}
+\begin{itemize}
+  \item En modo vector de estado, el ruido se sorteaba \emph{una vez} y todos los shots compartían esa realización: es
+        como estimar la media de un dado tirándolo una vez y apuntando el resultado 1000 veces.
+  \item En matriz de densidad, el canal depolarizante afectaba a todo el registro, no solo al qubit tocado.
+  \item En ejecución repetida, todos los shots reutilizaban la muestra del primero.
+\end{itemize}
+Ahora se usa un canal de Pauli local en matriz de densidad, que es exacto.
+
+\textbf{Error de lectura.} El detector se equivoca: lee 1 cuando era 0 con probabilidad $p_{01}$, y al revés con $p_{10}$:
+\[
+  \langle Z\rangle_{\text{medido}} = (1 - p_{01} - p_{10})\,\langle Z\rangle + (p_{10} - p_{01}).
+\]
+\textbf{Mitigación:} se estiman $p_{01}$ y $p_{10}$ preparando $\ket0$ y $\ket1$ conocidos, y se invierte la fórmula.
+
+\emph{Ejemplo con el simulador que imita el chip} (línea de 5 qubits; $p=0{,}001$ en puertas de un qubit, $0{,}01$ en
+las de dos, y lectura $0{,}03$/$0{,}06$): el valor ideal 0,477 baja a 0,383 por el ruido de puertas; el error de lectura
+lo deja en 0,378 medido, y la mitigación lo devuelve a 0,384. La mitigación de lectura corrige la lectura, pero no el
+ruido de las puertas.
+
+\section{Metodología y estadística}
+
+\begin{itemize}
+  \item \textbf{Train / validation / test.} Se entrena con train, se eligen el mejor paso y los hiperparámetros con
+        validation, y test se mira \emph{una sola vez} al final. Elegir con test haría la nota optimista.
+  \item \textbf{Baselines.} La clase mayoritaria dice si el modelo aprende algo; la regresión logística, si merece la
+        pena frente a algo clásico y simple.
+  \item \textbf{Semillas separadas} para la partición, la inicialización y el muestreo de shots y ruido, para saber qué
+        cambia en cada caso.
+  \item \textbf{Varias particiones.} Con una sola (la 42), GD parecía ganar a Adam en Iris (+0,117) y la QCNN parecía
+        igualar a la logística. Con 10 particiones, O1 da $+0{,}0025$ con IC $[-0{,}038,\ +0{,}040]$: era la partición.
+  \item \textbf{Bootstrap.} Remuestrear con reemplazo las 10 diferencias por partición miles de veces y mirar la
+        dispersión de la media: así se obtiene un intervalo de confianza sin suponer una distribución. Si el intervalo
+        incluye el 0, no se puede afirmar una diferencia.
+  \item \textbf{Wilcoxon de rangos con signo.} Prueba si las diferencias emparejadas tienden a ser de un signo. Con
+        $n=10$, la $p$ mínima posible es $2/2^{10}\approx0{,}002$ (las 10 diferencias del mismo signo).
+  \item \textbf{Holm.} Con muchas comparaciones, alguna sale «significativa» por azar. Holm ordena las $p$ y multiplica
+        la $k$-ésima menor por $(m-k+1)$, manteniendo el orden. \emph{Ejemplo} (bloque O1--O4, $m=7$): las cuatro O4
+        tienen $p=0{,}002 \to 0{,}014$; O2, $0{,}020\times3 = 0{,}059$; O3, $0{,}037\times2 = 0{,}074$; O1, $0{,}84$.
+        Solo O4 queda por debajo de 0,05.
+  \item \textbf{Pre-registro.} Escribir qué se compara \emph{antes} de ver los datos evita elegir a posteriori lo que salió bien.
+  \item \textbf{Patience.} Parar cuando validation lleva $P$ pasos sin mejorar. En simulación exacta la trayectoria no
+        depende de cuándo se pare, así que se reconstruyó a partir del historial; una prueba verifica que coincide con
+        un entrenamiento real.
+\end{itemize}
+
+\section{Del simulador al chip}
+
+\begin{itemize}
+  \item \textbf{Conectividad.} En un chip, cada qubit solo interactúa con sus vecinos físicos. Si dos qubits que deben
+        interactuar no son vecinos, se intercambian estados con \textbf{SWAP} (3 CNOT) hasta que lo sean.
+  \item \textbf{Puertas nativas.} El chip ejecuta su propio repertorio; supusimos $\{R_X, R_Y, R_Z, \mathrm{CZ}\}$. Traducir
+        el circuito es la \textbf{transpilación}, como compilar para un juego de instrucciones concreto.
+  \item \textbf{Profundidad y ruido.} Más puertas significa más ruido acumulado: la profundidad pasa de 25 a 35 con
+        2 SWAPs (línea o rejilla) y a 65 con 6 SWAPs (estrella). Por eso hay que preguntar la topología.
+  \item \textbf{Ejecución por lotes.} En el BSC casi todo el tiempo es sobrecarga de conexión (unos 20\,s por
+        trabajo), así que hay que enviar muchos circuitos juntos.
+  \item \textbf{Qibo y Qililab.} Qibo construye el circuito; Qililab, la librería de Qilimanjaro (el fabricante), lo
+        convierte en pulsos de microondas para el chip.
+  \item \textbf{Slurm.} Es el gestor de colas del supercomputador: \texttt{sbatch} envía un trabajo y un
+        \emph{job array} lanza muchos trabajos parecidos, uno por línea de una lista.
+\end{itemize}
+
+\section{Glosario rápido}
+
+\begin{description}[style=sameline,leftmargin=3.4cm,font=\bfseries]
+  \item[Amplitud] Número complejo asociado a cada cadena de bits; su módulo al cuadrado es la probabilidad.
+  \item[Barrido] En el secuencial, una pasada optimizando cada peso una vez.
+  \item[Checkpoint] Pesos guardados en el paso con menor pérdida de validation.
+  \item[Cono de luz] Puertas que pueden influir en una medida concreta.
+  \item[Entrelazamiento] Correlación entre qubits que no se puede describir qubit a qubit.
+  \item[Shot] Una ejecución y medida del circuito.
+  \item[Transpilar] Adaptar un circuito a la conectividad y a las puertas de un chip concreto.
+  \item[Unitaria] Matriz $U$ con $U^\dagger U = I$: reversible y que conserva la norma.
+\end{description}
+
+\end{document}

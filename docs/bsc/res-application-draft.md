@@ -135,6 +135,7 @@ Ninguno.
 ## Pendiente antes de enviar
 
 - [ ] Decisiones de la tabla inicial, con el tutor.
+- [ ] **Decidir si se corrige la arquitectura** (sección 37 del log: la salida ignora x3 y 3 de los 8 pesos). Si se corrige, regenerar `cost-estimates.md` y revisar 2a, 2d y 2e (profundidad, puertas, resultados citados). Si no, describir el modelo como de 3 características efectivas y valorar podar el qubit 3.
 - [ ] Verificar e incluir las referencias `[REF]`: QCNN, parameter-shift, SPSA y Rotosolve/NFT.
 - [ ] Rellenar los datos personales, el CV y la universidad.
 - [ ] Confirmar con el BSC la topología y las puertas nativas del chip, y si MN5 GPP contabiliza nodos completos.

@@ -67,6 +67,14 @@ reunión, una validación ni un resultado.
   supera a la mayoritaria pero queda por debajo de la logística en ambos
   datasets (Breast Cancer −0,026 a −0,084; Iris −0,07 a −0,18). La partición
   42 era favorable a la QCNN. Solo simulación, sin QPU.
+- **Hallazgo de arquitectura (24-nov, sección 37 del log, validado
+  numéricamente):** en el circuito QCNN actual la convolución termina en
+  `CNOT(derecha→izquierda)` y el pooling repite esa misma CNOT, que se anula.
+  La salida no depende de la característica x3 ni de los pesos w1-w3 de la
+  capa 2 (3 características y 5 pesos efectivos; 7 de 16 apariciones con
+  gradiente). Afecta a todas las rutas. Los resultados siguen siendo válidos
+  para este circuito; corregirlo cambia el modelo y es una decisión pendiente
+  de la tutoría. Evidencia: `results/diagnostics/light-cone/`.
 - **Ruido corregido:** desde el 12 de noviembre de 2026 el ruido por defecto
   es un canal local exacto (matriz de densidad, `PauliNoiseChannel`) con
   shots independientes. Los JSON M5/screens se generaron con el modo
@@ -171,6 +179,9 @@ JSON de resultados y su configuración.
 - `experiments/analyze_partitions.py`: análisis por partición de la fase C
   (Holm, baselines por partición, observaciones O1-O4 y patience reconstruida
   del historial, con reevaluación exacta del test una vez por regla).
+- `experiments/diagnose_light_cone.py`: qué características, pesos y
+  apariciones influyen en la salida (cono de luz); salida en
+  `results/diagnostics/light-cone/`.
 - `experiments/plot_variational_report.py`: figuras y tablas LaTeX de
   `docs/reports/` derivadas de los JSON de las fases A-C.
 - Plan BSC (fase 1, implementado y validado en simulación; sin acceso ni
@@ -201,8 +212,9 @@ JSON de resultados y su configuración.
 - `docs/quantum-training-plan.md`: plan del entrenamiento no híbrido.
 - `docs/tutor-briefing-2026-11-12.md`: resumen para la tutoría (actualizado el
   20-nov con el plan BSC); su versión PDF está en `docs/reports/`.
-- `docs/reports/`: informes LaTeX/PDF (resultados variacionales y resumen para
-  la tutoría), con figuras y tablas generadas desde los JSON por
+- `docs/reports/`: informes LaTeX/PDF (resultados variacionales, resumen para
+  la tutoría y guía de fundamentos para preparar la tutoría), con figuras y
+  tablas generadas desde los JSON por
   `experiments/plot_variational_report.py`; no forman parte de la memoria.
 - `docs/bsc/`: plan de ejecución en MareNostrum5-Ona y datos técnicos para la
   solicitud RES (`cost-estimates.md/json`, generados).
@@ -387,6 +399,9 @@ TFG en cada mensaje.
 
 - El pooling es lógico: Qibo mantiene el registro completo y no reduce la
   memoria del vector de estado.
+- La salida de la QCNN actual ignora la característica x3 y los pesos w1-w3 de
+  la capa 2 por la cancelación de CNOT entre convolución y pooling (sección 37
+  del log). No presentar el modelo como si usara las 4 características.
 - El parameter-shift vuelve a ejecutar el circuito por cada aparición de puerta
   parametrizada; es el principal cuello de botella.
 - La clasificación implementada es binaria; no hay multiclase ni minibatches.
