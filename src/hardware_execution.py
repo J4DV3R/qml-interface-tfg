@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import importlib
 from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
 
 import numpy as np
@@ -218,27 +219,80 @@ def mitigate_z_expectation(raw_z: float, p01: float, p10: float) -> float:
 
 # --------------------------------------------------------------------------- BSC / Qililab integration point
 class QililabExecutor:
-    """Skeleton adapter for Qilimanjaro chips through Qililab (NOT functional).
+    """Qililab integration boundary with an explicitly supplied external adapter.
 
-    Expected responsibilities, to be implemented with the BSC documentation:
+    This class does not import, infer or implement a Qililab API.  When
+    ``adapter_module`` is available, the module must expose ``execute_batch``:
 
-    1. build/connect the platform from the runcard provided by the BSC;
-    2. map compact circuit indices to chip qubits (``physical_qubits`` from
-       :class:`~src.transpilation.TranspiledCircuit`) and to the chip's native
-       gate names;
-    3. submit a whole batch per connection and return canonical bitstring
-       counts that pass :func:`~src.circuit_execution.validate_counts`;
-    4. record chip id, runcard hash and calibration timestamp in
-       ``capabilities.metadata`` for provenance.
+        execute_batch(circuits, shots, seed, runcard, physical_qubits)
+
+    It must return one canonical count mapping per circuit.  The executor
+    validates every returned mapping before exposing it to the caller.
     """
 
-    def __init__(self, runcard: str, physical_qubits: Sequence[int], *, max_shots: int | None = None):
-        self.runcard = runcard
-        self.physical_qubits = tuple(physical_qubits)
+    def __init__(
+        self,
+        runcard: str,
+        physical_qubits: Sequence[int],
+        *,
+        adapter_module: str | None = None,
+        chip_id: str | None = None,
+        max_qubits: int | None = None,
+        max_shots: int | None = None,
+        basis_gates: Sequence[str] | None = None,
+        connectivity: Sequence[tuple[int, int]] | None = None,
+    ):
+        if not isinstance(runcard, str) or not runcard.strip():
+            raise ValueError("runcard must be a non-empty path or identifier.")
+        try:
+            self.physical_qubits = tuple(int(q) for q in physical_qubits)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("physical_qubits must be a sequence of integers.") from exc
+        if not self.physical_qubits:
+            raise ValueError("physical_qubits must not be empty.")
+        if any(q < 0 for q in self.physical_qubits):
+            raise ValueError("physical_qubits must contain non-negative integers.")
+        if len(set(self.physical_qubits)) != len(self.physical_qubits):
+            raise ValueError("physical_qubits must not contain duplicates.")
+
+        self.runcard = runcard.strip()
+        self.adapter_module_name = adapter_module.strip() if isinstance(adapter_module, str) else None
+        self.chip_id = chip_id.strip() if isinstance(chip_id, str) and chip_id.strip() else None
+        gates_declared = tuple(basis_gates) if basis_gates is not None else None
+        self.connectivity = tuple(tuple(sorted(e)) for e in connectivity) if connectivity is not None else None
+        self._adapter = None
+        self._adapter_error: str | None = None
+
+        if self.adapter_module_name:
+            try:
+                self._adapter = importlib.import_module(self.adapter_module_name)
+            except Exception as exc:
+                self._adapter_error = f"could not load adapter module {self.adapter_module_name!r}: {exc}"
+        else:
+            self._adapter_error = "no external adapter module was configured"
+
+        if self._adapter is not None and not callable(getattr(self._adapter, "execute_batch", None)):
+            self._adapter_error = (
+                f"adapter module {self.adapter_module_name!r} does not expose a callable execute_batch"
+            )
+            self._adapter = None
+
+        declared_adapter = self.adapter_module_name or "none"
+        if chip_id is not None and not self.chip_id:
+            raise ValueError("chip_id must be a non-empty string when supplied.")
         self.capabilities = ResourceProfile(
+            max_qubits=max_qubits,
             max_shots=max_shots,
-            basis_gates=NATIVE_GATES,
-            metadata={"adapter": "qililab (skeleton, not validated)", "runcard": runcard},
+            basis_gates=gates_declared,
+            connectivity=self.connectivity,
+            metadata={
+                "adapter": "qililab external-adapter boundary",
+                "adapter_module": declared_adapter,
+                "runcard": self.runcard,
+                "chip_id": self.chip_id,
+                "physical_qubits": list(self.physical_qubits),
+                "compatibility": "not validated with any real QPU",
+            },
         )
 
     @staticmethod
@@ -253,10 +307,50 @@ class QililabExecutor:
         return self.execute_batch([circuit], shots=shots, seed=seed)[0]
 
     def execute_batch(self, circuits, *, shots: int, seed: int | None = None) -> list[dict[str, int]]:
-        raise NotImplementedError(
-            "QililabExecutor is a placeholder: implement it with the Qililab API documented by the BSC "
-            "(platform build/connect from the runcard, batched execution, result-to-counts conversion)."
-        )
+        if self._adapter is None:
+            raise NotImplementedError(
+                "QililabExecutor is not functional with a real API: "
+                + (self._adapter_error or "external adapter is unavailable.")
+            )
+        if not isinstance(circuits, Sequence) or isinstance(circuits, (str, bytes)):
+            raise TypeError("circuits must be a sequence.")
+        if not circuits:
+            raise ValueError("circuits must not be empty.")
+        for circuit in circuits:
+            n_qubits = getattr(circuit, "nqubits", len(self.physical_qubits))
+            self.capabilities.validate_request(n_qubits, shots)
+
+        try:
+            raw = self._adapter.execute_batch(
+                circuits,
+                shots,
+                seed,
+                self.runcard,
+                self.physical_qubits,
+            )
+        except Exception as exc:
+            raise RuntimeError(f"external adapter execute_batch failed: {exc}") from exc
+        if not isinstance(raw, (list, tuple)):
+            raise TypeError("external adapter execute_batch must return a list or tuple of count mappings.")
+        if len(raw) != len(circuits):
+            raise ValueError(
+                f"external adapter returned {len(raw)} count mappings for {len(circuits)} circuits."
+            )
+
+        validated = []
+        for index, (circuit, counts) in enumerate(zip(circuits, raw)):
+            targets = []
+            for gate in getattr(circuit, "queue", ()):
+                if gate.__class__.__name__ == "M":
+                    targets.extend(getattr(gate, "target_qubits", ()) or ())
+            n_bits = len(dict.fromkeys(targets)) if targets else len(getattr(circuit, "measurements", ()) or ())
+            if n_bits < 1:
+                raise ValueError(f"circuit {index} has no measurement result to validate.")
+            try:
+                validated.append(validate_counts(counts, n_bits=n_bits, shots=shots))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"external adapter returned invalid counts for circuit {index}: {exc}") from exc
+        return validated
 
 
 __all__ = [

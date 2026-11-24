@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 import tempfile
 import unittest
+import sys
 
 import numpy as np
 from qibo import gates
@@ -161,6 +162,68 @@ class MockAndMitigationTests(unittest.TestCase):
     def test_qililab_adapter_is_an_explicit_placeholder(self):
         with self.assertRaises(NotImplementedError):
             QililabExecutor("runcard.yml", (0, 1, 2, 3)).execute_batch([self.result.circuit], shots=10)
+
+    def test_qililab_loads_external_adapter_and_validates_counts(self):
+        module_name = "mock_qililab_adapter_for_test"
+        with tempfile.TemporaryDirectory(dir=str(ROOT)) as tmp:
+            module_path = Path(tmp) / f"{module_name}.py"
+            module_path.write_text(
+                "def execute_batch(circuits, shots, seed, runcard, physical_qubits):\n"
+                "    assert runcard == 'runcard.yml'\n"
+                "    assert tuple(physical_qubits) == (0, 1, 2, 3)\n"
+                "    return [{'0': shots // 2, '1': shots - shots // 2} for _ in circuits]\n",
+                encoding="utf-8",
+            )
+            sys.path.insert(0, tmp)
+            try:
+                executor = QililabExecutor(
+                    "runcard.yml", (0, 1, 2, 3),
+                    adapter_module=module_name,
+                    chip_id="test-chip",
+                    max_qubits=4,
+                    max_shots=100,
+                    basis_gates=("RX", "RY", "RZ", "CZ"),
+                    connectivity=((0, 1), (1, 2), (2, 3)),
+                )
+                counts = executor.execute_batch([self.result.circuit], shots=10, seed=7)
+                self.assertEqual(counts, [{"0": 5, "1": 5}])
+                self.assertEqual(executor.capabilities.metadata["chip_id"], "test-chip")
+                self.assertEqual(executor.capabilities.metadata["compatibility"], "not validated with any real QPU")
+                with self.assertRaises(ValueError):
+                    executor.capabilities.validate_request(5, 10)
+                with self.assertRaises(ValueError):
+                    executor.execute_batch([self.result.circuit], shots=101)
+            finally:
+                sys.path.remove(tmp)
+                sys.modules.pop(module_name, None)
+
+    def test_qililab_rejects_malformed_external_counts(self):
+        module_name = "mock_qililab_bad_counts_for_test"
+        with tempfile.TemporaryDirectory(dir=str(ROOT)) as tmp:
+            module_path = Path(tmp) / f"{module_name}.py"
+            module_path.write_text(
+                "def execute_batch(circuits, shots, seed, runcard, physical_qubits):\n"
+                "    return [{'2': shots} for _ in circuits]\n",
+                encoding="utf-8",
+            )
+            sys.path.insert(0, tmp)
+            try:
+                executor = QililabExecutor(
+                    "runcard.yml", (0, 1, 2, 3), adapter_module=module_name,
+                )
+                with self.assertRaisesRegex(ValueError, "invalid counts|invalid 1-bit"):
+                    executor.execute_batch([self.result.circuit], shots=10)
+            finally:
+                sys.path.remove(tmp)
+                sys.modules.pop(module_name, None)
+
+    def test_qililab_rejects_incomplete_cli_configuration(self):
+        from experiments.run_hardware_inference import main
+        run = ROOT / "results/variational/B-confirm-iris/I1-exact/sequential-angle/run-angle-sequential-init19.json"
+        with tempfile.TemporaryDirectory(dir=str(ROOT)) as tmp:
+            output = Path(tmp) / "missing.json"
+            with self.assertRaisesRegex(SystemExit, "--runcard"):
+                main([str(run), "--executor", "qililab", "--output", str(output)])
 
 
 class DryRunTests(unittest.TestCase):

@@ -54,11 +54,37 @@ SCHEMA_VERSION = "1"
 
 
 def parse_edges(text: str) -> tuple[tuple[int, int], ...]:
+    if not isinstance(text, str) or not text.strip():
+        raise SystemExit("--edges must provide a real, non-empty coupling map")
     edges = []
     for item in text.split(","):
-        a, b = item.strip().split("-")
-        edges.append((int(a), int(b)))
+        try:
+            a, b = item.strip().split("-")
+            edge = (int(a), int(b))
+        except (ValueError, AttributeError) as exc:
+            raise SystemExit(f"invalid --edges entry {item!r}; use '0-1,1-2'") from exc
+        if edge[0] < 0 or edge[1] < 0 or edge[0] == edge[1]:
+            raise SystemExit(f"invalid --edges entry {item!r}")
+        edges.append(tuple(sorted(edge)))
+    if len(set(edges)) != len(edges):
+        raise SystemExit("--edges contains duplicate coupling entries")
     return tuple(edges)
+
+
+def parse_basis_gates(text: str | None) -> tuple[str, ...] | None:
+    if text is None:
+        return None
+    gates = tuple(item.strip() for item in text.split(",") if item.strip())
+    if not gates:
+        raise SystemExit("--basis-gates must contain at least one gate name")
+    return gates
+
+
+def positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
 
 
 def load_run(path: Path) -> dict[str, Any]:
@@ -108,6 +134,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--readout-p01", type=float, default=0.0)
     parser.add_argument("--readout-p10", type=float, default=0.0)
     parser.add_argument("--runcard", type=str, default=None, help="Qililab runcard (qililab executor)")
+    parser.add_argument("--qililab-adapter-module", type=str, default=None,
+                        help="Python module exposing execute_batch(circuits, shots, seed, runcard, physical_qubits)")
+    parser.add_argument("--chip-id", type=str, default=None)
+    parser.add_argument("--basis-gates", type=str, default=None,
+                        help="comma-separated declared basis gates, e.g. 'RX,RY,RZ,CZ'")
+    parser.add_argument("--max-qubits", type=positive_int, default=None)
+    parser.add_argument("--max-shots", type=positive_int, default=None)
     parser.add_argument("--seed", type=int, default=2026, help="execution seed (shots/noise sampling)")
     parser.add_argument("--max-samples", type=int, default=None, help="limit samples per split (smoke tests)")
     parser.add_argument("--output", type=Path, required=True)
@@ -119,7 +152,18 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     if args.output.exists():
         raise SystemExit(f"refusing to overwrite {args.output}")
     calibration_shots = args.calibration_shots or args.shots
-    edges = parse_edges(args.edges) if args.edges else topology_edges(args.topology, args.device_qubits)
+    if args.executor == "qililab":
+        if not args.runcard:
+            raise SystemExit("--runcard is required for the qililab executor")
+        if not args.qililab_adapter_module:
+            raise SystemExit("--qililab-adapter-module is required for the qililab executor")
+        if not args.edges:
+            raise SystemExit("--edges is required for the qililab executor; generic topology is not allowed")
+        edges = parse_edges(args.edges)
+        basis_gates = parse_basis_gates(args.basis_gates)
+    else:
+        edges = parse_edges(args.edges) if args.edges else topology_edges(args.topology, args.device_qubits)
+        basis_gates = parse_basis_gates(args.basis_gates)
     runs = [load_run(path) for path in args.runs]
     seeds = np.random.SeedSequence(args.seed).spawn(2 + len(runs))
     started = time.time()
@@ -133,9 +177,16 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
         noise = MockNoise(args.noise_1q, args.noise_2q, args.readout_p01, args.readout_p10)
         executor = HardwareMockExecutor(probe_t.coupling_edges, probe_t.circuit.nqubits, noise)
     else:
-        if not args.runcard:
-            raise SystemExit("--runcard is required for the qililab executor")
-        executor = QililabExecutor(args.runcard, probe_t.physical_qubits)
+        executor = QililabExecutor(
+            args.runcard,
+            probe_t.physical_qubits,
+            adapter_module=args.qililab_adapter_module,
+            chip_id=args.chip_id,
+            max_qubits=args.max_qubits,
+            max_shots=args.max_shots,
+            basis_gates=basis_gates,
+            connectivity=edges,
+        )
     measured_bit = probe_t.physical_qubits.index(probe_t.measured_physical[0])
 
     def calibrate(seed_seq):
@@ -191,7 +242,8 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     output = {
         "schema_version": SCHEMA_VERSION,
         "kind": "hardware-inference",
-        "status": "dry-run (simulator mock)" if args.executor == "mock" else "hardware",
+        "status": ("dry-run (simulator mock)" if args.executor == "mock"
+                   else "adapter-configured (real hardware compatibility not validated)"),
         "created_unix": started,
         "elapsed_seconds": elapsed,
         "provenance": collect_provenance(sys.argv if argv is None else ["run_hardware_inference", *argv]),
