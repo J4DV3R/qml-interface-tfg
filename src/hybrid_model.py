@@ -1,5 +1,7 @@
 """Differentiable PyTorch wrapper around a Qibo state-vector QCNN."""
 
+from __future__ import annotations
+
 import math
 
 import numpy as np

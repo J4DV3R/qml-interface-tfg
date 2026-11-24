@@ -1,5 +1,7 @@
 """Run the focused experiments used to close the first QCNN version."""
 
+from __future__ import annotations
+
 import argparse
 from dataclasses import asdict
 import json

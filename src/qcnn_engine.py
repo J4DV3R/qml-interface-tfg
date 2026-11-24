@@ -13,6 +13,8 @@ The circuit layout is identical to the historical implementation:
 * Pauli-Z expectation values of the surviving qubits.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 import math
 

@@ -1,5 +1,7 @@
 """Diagnose QCNN convergence without the cost of shots or noise."""
 
+from __future__ import annotations
+
 import argparse
 import json
 from pathlib import Path

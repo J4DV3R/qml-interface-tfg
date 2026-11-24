@@ -18,6 +18,8 @@ one Qibo circuit per scalar weight. Post-update train and validation losses
 each execute one prediction circuit per sample.
 """
 
+from __future__ import annotations
+
 from contextlib import contextmanager
 from dataclasses import dataclass
 import copy

@@ -1,5 +1,7 @@
 """Classical training loop for the QCNN prototype."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 import torch

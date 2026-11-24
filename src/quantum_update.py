@@ -16,6 +16,8 @@ translate/decompose the multi-controlled gates; no hardware transpiler or
 backend is selected here.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from functools import lru_cache
 import math

@@ -6,6 +6,8 @@ quantum-training module itself has no Torch dependency. The test partition is
 used once, after validation has selected the best checkpoint.
 """
 
+from __future__ import annotations
+
 import argparse
 import copy
 from dataclasses import asdict

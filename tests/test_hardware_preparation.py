@@ -160,8 +160,37 @@ class MockAndMitigationTests(unittest.TestCase):
         self.assertAlmostEqual(mitigate_z_expectation(raw_sym, 0.08, 0.08), true_z, delta=0.015)
 
     def test_qililab_adapter_is_an_explicit_placeholder(self):
-        with self.assertRaises(NotImplementedError):
-            QililabExecutor("runcard.yml", (0, 1, 2, 3)).execute_batch([self.result.circuit], shots=10)
+        executor = QililabExecutor("runcard.yml", (0, 1, 2, 3), adapter_module="src.qililab_adapter")
+        with self.assertRaisesRegex(RuntimeError, "Qililab is not installed"):
+            executor.execute_batch([self.result.circuit], shots=10)
+
+    def test_builtin_qililab_adapter_normalizes_counts(self):
+        import types
+
+        fake = types.ModuleType("qililab")
+
+        class Result:
+            def counts(self):
+                return {"0": 6, "1": 4}
+
+        fake.execute = lambda circuit, runcard, nshots: Result()
+        previous = sys.modules.get("qililab")
+        sys.modules["qililab"] = fake
+        try:
+            from src.qililab_adapter import execute_batch
+            counts = execute_batch(
+                [self.result.circuit],
+                10,
+                None,
+                "runcard.yml",
+                (0, 1, 2, 3),
+            )
+            self.assertEqual(counts, [{"0": 6, "1": 4}])
+        finally:
+            if previous is None:
+                sys.modules.pop("qililab", None)
+            else:
+                sys.modules["qililab"] = previous
 
     def test_qililab_loads_external_adapter_and_validates_counts(self):
         module_name = "mock_qililab_adapter_for_test"
