@@ -66,6 +66,24 @@ python -B -m experiments.run_hardware_inference \
   --output results/hardware/pilot-smoke.json
 ```
 
+## Ejecución mínima independiente
+
+El archivo [run_qililab_smoke.py](../../experiments/run_qililab_smoke.py)
+ejecuta únicamente un circuito X y mide un qubit. No carga datasets ni
+checkpoints.
+
+```bash
+python -B -m experiments.run_qililab_smoke \
+  --runcard "$RUNCARD_BLUE" \
+  --physical-qubits 0 \
+  --shots 100 \
+  --chip-id BLUE \
+  --operation x \
+  --output results/hardware/qililab-smoke-blue.json
+```
+
+El runcard puede omitirse si está configurada `RUNCARD_BLUE` o `RUNCARD_RED`.
+
 ## Datos que debe confirmar el tutor
 
 - Runcard de `quantum_blue` o `quantum_red`.
