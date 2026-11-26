@@ -33,7 +33,8 @@ No se han podido leer de forma automática la página de Slurm del BSC ni la API
 |---|---|
 | `src/hardware_cost.py` | Circuitos por paso y por muestra (33 / 2 / 40), coste de inferencia y entrenamiento, y dos modelos de tiempo **supuestos**: cota sin lotes según la referencia de la RES, y escenario con lotes |
 | `src/transpilation.py` | Transpilador mínimo, porque Qibo 0.1.11 no trae `qibo.transpiler`: layout óptimo por distancia, SWAPs por camino mínimo, descomposición a `{RX, RY, RZ, CZ}` y fusión de rotaciones. El circuito se compacta a los qubits físicos usados |
-| `src/hardware_execution.py` | Protocolo `BatchCircuitExecutor` y `execute_batch`. `HardwareMockExecutor` es un simulador que solo acepta puertas nativas sobre pares acoplados, con ruido depolarizante local por puerta y error de lectura asimétrico. Incluye calibración y mitigación de lectura, y `QililabExecutor` como **esqueleto no funcional** |
+| `src/hardware_execution.py` | Protocolo `BatchCircuitExecutor` y `execute_batch`. `HardwareMockExecutor` es un simulador ruidoso. `QililabExecutor` usa por defecto `src/qililab_adapter` |
+| `src/qililab_adapter.py` | Adaptador directo documentado: importa `qililab`, llama a `ql.execute(circuit, runcard, nshots=...)`, obtiene `counts()` y valida el resultado |
 | `experiments/run_hardware_inference.py` | Inferencia de checkpoints guardados. Recalcula particiones, transpila, ejecuta por lotes, calibra la lectura al principio y al final, y da métricas exactas, brutas y mitigadas, con procedencia y coste. No selecciona nada con test |
 | `experiments/estimate_hardware_cost.py` | Genera `cost-estimates.md/json`, los datos técnicos para la solicitud |
 | `experiments/make_variational_jobs.py` | Genera la lista de trabajos para los *job arrays* |
@@ -80,9 +81,28 @@ La salida del circuito actual no depende del qubit 3 ni de 3 de los 8 pesos.
 
 Conviene decidirlo **antes** de enviar la solicitud.
 
+## Preparación BSC entregable al tutor
+
+El adaptador ya implementa la llamada pública documentada:
+
+```python
+result = qililab.execute(circuit, runcard, nshots=1000)
+counts = result.counts()
+```
+
+La publicación pública actual 0.33.3 requiere Python >=3.11. Para mantener
+la plataforma compatible con Python 3.10.13, el entorno BSC debe proporcionar
+la versión aprobada de Qililab para el módulo `quantum_blue` o `quantum_red`;
+no se ha fijado una versión pública en `requirements.txt` hasta confirmarla.
+
+No contiene credenciales ni runcards. El tutor puede proporcionar el runcard
+mediante `--runcard` o mediante `RUNCARD_BLUE`/`RUNCARD_RED`. La ejecución
+continúa siendo individual hasta confirmar un contrato de lote real de Ona.
+
 ## Pendiente para la fase 2
 
-- Implementar `QililabExecutor` con la API documentada por el BSC: runcard, conexión, ejecución por lotes, conversión a *counts* y metadatos de calibración.
+- Cargar el entorno `quantum_blue` o `quantum_red` y la versión aprobada de Qililab.
 - Sustituir las topologías genéricas por el mapa de acoplamiento real y las puertas nativas reales.
+- Confirmar el formato exacto de `counts()` con el entorno y chip reales.
 - Medir los tiempos reales y reemplazar el modelo `batched-assumption`.
 - Comprobar que la versión de Qibo del BSC es compatible con la 0.1.11.

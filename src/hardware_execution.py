@@ -219,10 +219,11 @@ def mitigate_z_expectation(raw_z: float, p01: float, p10: float) -> float:
 
 # --------------------------------------------------------------------------- BSC / Qililab integration point
 class QililabExecutor:
-    """Qililab integration boundary with an explicitly supplied external adapter.
+    """Qililab integration boundary.
 
-    This class does not import, infer or implement a Qililab API.  When
-    ``adapter_module`` is available, the module must expose ``execute_batch``:
+    By default it uses ``src.qililab_adapter``.  An external adapter module
+    may replace it for a deployment-specific API; it must expose
+    ``execute_batch``:
 
         execute_batch(circuits, shots, seed, runcard, physical_qubits)
 
@@ -262,6 +263,9 @@ class QililabExecutor:
         self.connectivity = tuple(tuple(sorted(e)) for e in connectivity) if connectivity is not None else None
         self._adapter = None
         self._adapter_error: str | None = None
+
+        if self.adapter_module_name is None:
+            self.adapter_module_name = "src.qililab_adapter"
 
         if self.adapter_module_name:
             try:

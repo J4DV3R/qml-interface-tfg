@@ -160,8 +160,37 @@ class MockAndMitigationTests(unittest.TestCase):
         self.assertAlmostEqual(mitigate_z_expectation(raw_sym, 0.08, 0.08), true_z, delta=0.015)
 
     def test_qililab_adapter_is_an_explicit_placeholder(self):
-        with self.assertRaises(NotImplementedError):
-            QililabExecutor("runcard.yml", (0, 1, 2, 3)).execute_batch([self.result.circuit], shots=10)
+        executor = QililabExecutor("runcard.yml", (0, 1, 2, 3), adapter_module="src.qililab_adapter")
+        with self.assertRaisesRegex(RuntimeError, "Qililab is not installed"):
+            executor.execute_batch([self.result.circuit], shots=10)
+
+    def test_builtin_qililab_adapter_normalizes_counts(self):
+        import types
+
+        fake = types.ModuleType("qililab")
+
+        class Result:
+            def counts(self):
+                return {"0": 6, "1": 4}
+
+        fake.execute = lambda circuit, runcard, nshots: Result()
+        previous = sys.modules.get("qililab")
+        sys.modules["qililab"] = fake
+        try:
+            from src.qililab_adapter import execute_batch
+            counts = execute_batch(
+                [self.result.circuit],
+                10,
+                None,
+                "runcard.yml",
+                (0, 1, 2, 3),
+            )
+            self.assertEqual(counts, [{"0": 6, "1": 4}])
+        finally:
+            if previous is None:
+                sys.modules.pop("qililab", None)
+            else:
+                sys.modules["qililab"] = previous
 
     def test_qililab_loads_external_adapter_and_validates_counts(self):
         module_name = "mock_qililab_adapter_for_test"
@@ -224,6 +253,30 @@ class MockAndMitigationTests(unittest.TestCase):
             output = Path(tmp) / "missing.json"
             with self.assertRaisesRegex(SystemExit, "--runcard"):
                 main([str(run), "--executor", "qililab", "--output", str(output)])
+
+    def test_smoke_runner_builds_one_qubit_x_circuit_and_defaults_to_100_shots(self):
+        from experiments.run_qililab_smoke import build_parser, build_smoke_circuit
+
+        circuit = build_smoke_circuit("x", (0,))
+        self.assertEqual(circuit.nqubits, 1)
+        names = [gate.__class__.__name__ for gate in circuit.queue]
+        self.assertEqual(names, ["X", "M"])
+
+        with tempfile.TemporaryDirectory(dir=str(ROOT)) as tmp:
+            args = build_parser().parse_args([
+                "--runcard", "runcard.yml",
+                "--physical-qubits", "0",
+                "--output", str(Path(tmp) / "smoke.json"),
+            ])
+            self.assertEqual(args.shots, 100)
+            self.assertEqual(args.operation, "x")
+
+    def test_smoke_runner_rejects_invalid_physical_qubits(self):
+        from experiments.run_qililab_smoke import parse_physical_qubits
+
+        self.assertEqual(parse_physical_qubits("4,5"), (4, 5))
+        with self.assertRaises(Exception):
+            parse_physical_qubits("4,4")
 
 
 class DryRunTests(unittest.TestCase):

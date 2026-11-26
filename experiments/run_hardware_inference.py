@@ -135,7 +135,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--readout-p10", type=float, default=0.0)
     parser.add_argument("--runcard", type=str, default=None, help="Qililab runcard (qililab executor)")
     parser.add_argument("--qililab-adapter-module", type=str, default=None,
-                        help="Python module exposing execute_batch(circuits, shots, seed, runcard, physical_qubits)")
+                        help="Optional external adapter; defaults to src.qililab_adapter")
     parser.add_argument("--chip-id", type=str, default=None)
     parser.add_argument("--basis-gates", type=str, default=None,
                         help="comma-separated declared basis gates, e.g. 'RX,RY,RZ,CZ'")
@@ -154,9 +154,13 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     calibration_shots = args.calibration_shots or args.shots
     if args.executor == "qililab":
         if not args.runcard:
-            raise SystemExit("--runcard is required for the qililab executor")
-        if not args.qililab_adapter_module:
-            raise SystemExit("--qililab-adapter-module is required for the qililab executor")
+            import os
+            args.runcard = os.getenv("RUNCARD_BLUE") or os.getenv("RUNCARD_RED")
+            if not args.runcard:
+                raise SystemExit(
+                    "--runcard is required or RUNCARD_BLUE/RUNCARD_RED must be set "
+                    "for the qililab executor"
+                )
         if not args.edges:
             raise SystemExit("--edges is required for the qililab executor; generic topology is not allowed")
         edges = parse_edges(args.edges)

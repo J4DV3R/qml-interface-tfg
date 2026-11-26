@@ -1,5 +1,7 @@
 """Reproducible sweep comparing exact, sampled, and noisy QCNN execution."""
 
+from __future__ import annotations
+
 from dataclasses import asdict, dataclass
 import json
 from pathlib import Path

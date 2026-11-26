@@ -1,5 +1,7 @@
 """Model-independent metrics for binary experiments."""
 
+from __future__ import annotations
+
 import torch
 
 
