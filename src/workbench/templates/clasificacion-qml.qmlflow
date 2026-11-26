@@ -1,0 +1,20 @@
+{
+  "format": "qml-workbench-flow",
+  "version": 1,
+  "name": "Clasificación QML",
+  "description": "Flujo principal: dataset → modelo QML → procesado de resultados → resultados. Es una plantilla: los nodos pueden reconfigurarse, añadirse o reconectarse.",
+  "nodes": [
+    {"id": "dataset", "type": "dataset", "title": null, "position": [0, 0],
+     "params": {"source": "iris-binary"}},
+    {"id": "qml", "type": "qml", "title": null, "position": [312, 0],
+     "params": {"algorithm": "qcnn-variational", "train_percent": 70, "validation_percent": 15,
+                "test_percent": 15, "split_seed": 42, "optimizer": "sequential", "max_steps": 20}},
+    {"id": "evaluation", "type": "evaluation", "title": null, "position": [624, 0], "params": {}},
+    {"id": "results", "type": "results", "title": null, "position": [936, 0], "params": {}}
+  ],
+  "links": [
+    {"id": "l1", "source": ["dataset", "data"], "target": ["qml", "data"]},
+    {"id": "l2", "source": ["qml", "result"], "target": ["evaluation", "result"]},
+    {"id": "l3", "source": ["evaluation", "report"], "target": ["results", "report"]}
+  ]
+}

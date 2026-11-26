@@ -10,6 +10,34 @@ reproducibles de Quantum Machine Learning sobre Qibo. El primer algoritmo en
 desarrollo es una QCNN; la arquitectura deberá permitir incorporar y comparar
 otros algoritmos QML en incrementos posteriores.
 
+## Entorno objetivo
+
+La configuración prioritaria de dependencias sigue la rama
+`python3.9-variation`, cuyo entorno objetivo es CPython 3.10.13. Se conservan
+sus versiones fijadas y se añade PySide6 6.12.0 para la interfaz Workbench.
+En Windows, se puede crear un entorno separado e instalar esos requisitos así:
+
+```powershell
+py -3.10 -m venv .venv-py310
+.venv-py310\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+## Interfaz: QML Workbench
+
+Aplicación de escritorio (PySide6) de flujos de nodos al estilo de Orange, con
+patrón MVC. Se abre con la plantilla «Clasificación QML» (Dataset → QML →
+Procesado de resultados → Resultados), que es un flujo editable: se pueden
+añadir, quitar y reconectar nodos con tipos comprobados. Implementado y
+validado (sección 38 del log). Arquitectura y guía para añadir algoritmos y
+nodos: [docs/workbench/README.md](docs/workbench/README.md).
+
+```powershell
+.venv-py310\Scripts\python.exe -m src.workbench
+.venv-py310\Scripts\python.exe -m src.workbench.run --template clasificacion-qml
+```
+
+La segunda orden ejecuta el flujo sin interfaz.
+
 ## Descenso de gradiente cuántico discreto: M1-M5 integrado
 
 El diseño previsto del descenso de gradiente cuántico discreto (QGD) está
@@ -314,13 +342,11 @@ model = QCNNModel(
 
 Con las dependencias de `requirements.txt` instaladas:
 
-En este checkout el entorno verificado es `qml_env`. El Python global no tiene
-Qibo; usa `qml_env\Scripts\python.exe` (o activa ese entorno antes de ejecutar
-los comandos). `requirements.txt` es una lista amplia similar a un freeze, no un
-manifiesto mínimo; `scikit-learn` no tiene versión fijada. El árbol actual
-incluye una actualización aprobada de `requirements.txt` (122→51 líneas, UTF-8;
-sin el stack Jupyter ni `torchvision`), pero no se han instalado ni cambiado
-dependencias durante esta revisión.
+En este checkout el entorno local verificado es `qml_env`, pero no valida
+CPython 3.10.13. Para probar la configuración objetivo, usa
+`.venv-py310\Scripts\python.exe` (consulta «Entorno objetivo» para crearlo). El
+`requirements.txt` mantiene las versiones fijadas por la rama objetivo y añade
+PySide6 para Workbench; `scikit-learn` está fijado en 1.6.1.
 
 **Ruptura de API documentada:** `load_binary_iris()` se eliminó de
 `src/datasets.py` en este árbol y no tiene usos internos. Debe usarse
@@ -328,7 +354,7 @@ dependencias durante esta revisión.
 sección 29 del log.
 
 ```powershell
-qml_env\Scripts\python.exe -m unittest discover -s tests -v
+.venv-py310\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
 ## Experimento comparativo

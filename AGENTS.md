@@ -41,9 +41,10 @@ reunión, una validación ni un resultado.
   usa el simulador Qibo, no un proveedor de hardware. El CLI está en
   `experiments/run_quantum_training.py`. La suite de 92 pruebas se reejecutó
   en `bc877bd` limpio el 12 de noviembre de 2026 (OK). La validación más
-  reciente pasó la suite completa de 138 pruebas el 20 de noviembre de 2026
-  sobre un árbol de trabajo sucio basado en `b9499d0` (revisión previa al
-  push, sección 36 del log); 73, 88, 92 y 124 son conteos históricos.
+  reciente pasó la suite completa de 157 pruebas el 25 de noviembre de 2026
+  sobre un árbol de trabajo sucio basado en `73faad9` (interfaz QML Workbench,
+  sección 38 del log; con la plataforma Qt `offscreen`); 73, 88, 92, 124 y
+  138 son conteos históricos.
 - **Nueva línea variacional (implementada, validada unitariamente y evaluada
   en simulación):** `src/fast_qcnn.py` (simulador NumPy vectorizado, idéntico a Qibo
   con error < 1e-10, ~76 veces más rápido) y `src/variational_training.py`
@@ -194,6 +195,14 @@ JSON de resultados y su configuración.
   `experiments/run_hardware_inference.py`, `experiments/estimate_hardware_cost.py`,
   `experiments/make_variational_jobs.py`, `slurm/` (marcadores `<...>`) y
   `tests/test_hardware_preparation.py`.
+- `src/workbench/`: interfaz QML Workbench (sección 38 del log; implementada
+  y validada). Patrón MVC: `model/` (grafo con puertos tipados, esquemas de
+  parámetros, registros de nodos y algoritmos, motor con caché, preprocesado
+  ajustado solo en train, plantillas `*.qmlflow`; sin Qt), `controller/`
+  (eventos, ejecución en hilo, cancelación; sin Qt) y `view/` (PySide6).
+  Entradas: `python -m src.workbench` y `python -m src.workbench.run`.
+  Documentación en `docs/workbench/README.md`; pruebas en
+  `tests/test_workbench.py`. Solo la vista importa Qt.
 - `tests/test_qcnn.py`: pruebas unitarias del prototipo.
 - `tests/test_quantum_engine.py`, `tests/test_optimizers.py`,
   `tests/test_quantum_update.py`, `tests/test_quantum_training.py`,
@@ -365,18 +374,21 @@ TFG en cada mensaje.
 - El manifiesto `requirements.txt` contiene una lista amplia similar a un freeze
   (la versión de HEAD incluía Jupyter y paquetes no importados directamente);
   no es una lista mínima curada.
-- **Cambio aprobado en el árbol actual:** `requirements.txt` está modificado
-  respecto a HEAD (122 líneas UTF-16LE → 51 líneas UTF-8; elimina el stack
-  Jupyter y `torchvision`). El responsable aprobó explícitamente incluir este
-  cambio en el commit de cierre del 10 de noviembre de 2026. No lo modifiques de
-  nuevo sin una nueva aprobación.
-- Imports directos de la aplicación: NumPy, Qibo, SciPy, Torch y scikit-learn.
-  `scikit-learn` aparece sin versión fijada. La versión de HEAD de
-  `requirements.txt` incluía `torchvision`, sin import directo localizado en
-  `src/` ni `experiments/`; la versión aprobada ya no lo incluye.
+- **Dependencias alineadas para Python 3.10.13:** `requirements.txt` conserva
+  los pins de `origin/python3.9-variation` y añade PySide6 6.12.0, aprobado para
+  la Workbench. El archivo actual tiene 57 líneas UTF-8; elimina el stack
+  Jupyter y `torchvision`, e incluye `scikit-learn==1.6.1`. Esta alineación se
+  aprobó el 25 de noviembre de 2026.
+- Imports directos de la aplicación: NumPy, Qibo, SciPy, Torch y scikit-learn;
+  la interfaz añade PySide6 6.12.0 (aprobada por el responsable el 25-nov-2026
+  e incluida en `requirements.txt`) y usa Matplotlib y NetworkX.
+  Las versiones fijadas son las de la rama objetivo; `torchvision` no se
+  importa directamente desde `src/` ni `experiments/` y no se incluye.
 - Entorno verificado de este checkout: `qml_env\Scripts\python.exe`, Python
   3.14.3, Qibo 0.1.11, NumPy 2.5.3, SciPy 1.18.1, Torch 2.14.0,
   scikit-learn 1.9.1; `pip check` informó que no hay dependencias rotas.
+  Este entorno local no valida los pins objetivo de Python 3.10.13; usa un
+  entorno separado para esa versión.
 - El Python global no tiene Qibo. Ejecuta pruebas/comandos con `qml_env\Scripts\python.exe`
   o activa explícitamente el entorno del proyecto.
 - No instales, elimines ni fijes dependencias sin aprobación; una futura limpieza

@@ -1272,3 +1272,61 @@ Revisión de los commits `25a0e69`, `52ce86c` y `b9499d0`, que aún no estaban e
 **Consecuencias de coste** (no implementadas): 15 circuitos por muestra en lugar de 33 con parameter-shift; 19 en lugar de 40 con el optimizador secuencial; un circuito efectivo de 3 qubits para hardware.
 
 **Pendiente:** decisión de la tutoría sobre si corregir la arquitectura antes de la memoria y de la solicitud RES. Una corrección, por ejemplo un pooling con rotación controlada parametrizada, cambia el modelo y obliga a repetir la fase C (unas 7,5 h de CPU en exacto).
+
+## 38. Interfaz de la plataforma: QML Workbench (PySide6, MVC, flujos de nodos) (25 de noviembre de 2026)
+
+**Estado: implementado y validado.** Detalle en `docs/workbench/README.md`.
+
+**Decisiones de diseño (acordadas con el responsable):**
+- Interfaz de escritorio con PySide6, basada en flujos de nodos al estilo de Orange y con patrón MVC.
+- Los proyectos parten de **plantillas** que son flujos ordinarios y editables, para admitir en el futuro nodos que no encajen en el flujo lineal.
+- **Dependencia nueva aprobada por el responsable:** PySide6 6.12.0 (instalada en `qml_env` y añadida a `requirements.txt`).
+
+**Implementado:**
+- **Modelo sin Qt** (`src/workbench/model/`):
+  - grafo con puertos tipados, validación de conexiones y ciclos;
+  - esquemas de parámetros declarativos (visibilidad condicional y esquema dinámico según el algoritmo);
+  - registros de nodos y de algoritmos;
+  - motor con caché por firma (tipo, parámetros y firmas aguas arriba) e invalidación selectiva;
+  - persistencia `*.qmlflow`, plantillas y un ejecutor sin interfaz (`python -m src.workbench.run`).
+- **Nodos:** Dataset (Iris binario, Breast Cancer, CSV), QML (algoritmo, porcentajes de partición, semilla, reducción e hiperparámetros), Procesado de resultados (métricas, baselines y curvas) y Resultados (pantalla y exportación JSON/CSV).
+- **Algoritmo:** QCNN variacional, que envuelve `variational_training` y `fast_qcnn` con las mismas semillas y flujos aleatorios que el benchmark.
+- **Controlador sin Qt**, con eventos, ejecución en un hilo y cancelación.
+- **Vista PySide6:** lienzo con arrastre de conexiones, paleta, formularios generados del esquema, registro, progreso por nodo y ventana de resultados con métricas, curvas (matplotlib), matrices de confusión y configuración.
+- **Cambio compatible en `train_variational_qcnn`:** `callback` opcional para progreso y cancelación (`stop_reason="cancelled"`), sin alterar el flujo aleatorio. Una prueba lo verifica.
+
+**Validado:**
+- `tests/test_workbench.py`, 16 pruebas: parámetros, grafo, ramificación, persistencia, plantillas, caché e invalidación, errores, controlador, cancelación, callback, prueba de humo de la ventana (Qt `offscreen`) e interacción del lienzo con ratón simulado.
+- **Reproducción de la fase C:**
+  - las particiones son idénticas a `load_partitions` en Iris y Breast Cancer;
+  - Iris (partición 1, Adam, angular) y Breast Cancer (partición 3, secuencial, fase) reproducen el paso del checkpoint, la pérdida de validation y la accuracy de test;
+  - los pesos que influyen coinciden. Los pesos w2–w3 de la capa 2 del secuencial difieren, porque no influyen en la salida (sección 37) y su desempate depende del orden de las sumas en coma flotante.
+- **Suite completa:** 157 pruebas OK. `compileall` y `git diff --check`: OK.
+
+**Limitaciones:**
+- Solo hay un algoritmo, y lo afecta el hallazgo de la sección 37.
+- Solo simulación: el BSC no está conectado al nodo QML.
+- Clasificación binaria; sin deshacer ni nodos de preprocesado o comparación.
+- La vista se ha probado con la plataforma `offscreen`, sin pruebas de usabilidad.
+
+**Actualización (25-nov):** la vista se rediseñó con la composición del IBM Quantum Composer (solo diseño): paleta Carbon con tema oscuro/claro, barra superior con botón principal «Ejecutar flujo», panel de fichas de nodos, lienzo con barra de herramientas y cuadrícula, panel derecho «Parámetros»/«Proyecto (.qmlflow)» y paneles inferiores de resultados en vivo. Solo cambia la vista; el modelo y el controlador no se tocan. Suite completa: 157 pruebas OK.
+
+**Actualización (25-nov, refinado):** fuente Bahnschrift (interfaz y gráficas) y Cascadia Code (código y registro); menú Ver para mostrar u ocultar y configurar los paneles; clic derecho en los paneles inferiores para limpiar métricas y gráficas. Corrección de la exportación: los cambios del formulario no se aplicaban si no se pulsaba «Aplicar» (ahora se aplican al momento); el CSV pasa a formato de Excel en español con métricas y baselines; el JSON añade predicciones por muestra; las rutas se resuelven y se muestran completas. Suite completa: 158 pruebas OK.
+
+## 39. Alineación de `main` con CPython 3.10.13 (25 de noviembre de 2026)
+
+**Estado: implementado; validación en CPython 3.10 pendiente.**
+
+**Decisión:** se priorizan en `requirements.txt` los pins de `origin/python3.9-variation` (objetivo CPython 3.10.13) y se añade únicamente `PySide6==6.12.0` para conservar la interfaz Workbench. `scikit-learn` queda fijado en 1.6.1, como en la rama. El README documenta la creación de un entorno separado `.venv-py310`.
+
+**Auditoría de código:** los módulos locales de Workbench y el cambio de callback de entrenamiento usan sintaxis de Python 3.10; no se encontró uso de APIs de Python 3.11+ en las rutas revisadas. Los archivos Python locales y los archivos Python modificados por la rama pasaron un análisis AST con `feature_version=(3, 10)`. La rama añade anotaciones futuras en los módulos compartidos y su adaptador Qililab carga la dependencia externa solo al ejecutar; no se encontró conflicto de API con los usos de Workbench.
+
+**Validado en el entorno local Python 3.14.3, no en Python 3.10:**
+- `qml_env\Scripts\python.exe -m unittest discover -s tests -p test_workbench.py -v`: 17 pruebas OK.
+- `qml_env\Scripts\python.exe -m unittest discover -s tests -p test_variational_training.py -v`: 13 pruebas OK.
+- `qml_env\Scripts\python.exe -m unittest discover -s tests -p test_hardware_preparation.py -v`: 14 pruebas OK.
+- Comparación del manifiesto: todos los pins de la rama se conservan; el único requisito adicional es PySide6 6.12.0. El árbol de trabajo y la rama solo coinciden en la ruta `requirements.txt`; `git diff --check` no detectó errores.
+
+**Pendiente:** este entorno no tiene CPython 3.10.13; no se instalaron dependencias ni se ejecutó la suite completa en esta comprobación. Tampoco se ejecutó `git merge`, commit ni push. La compatibilidad de runtime con la versión objetivo requiere instalar el manifiesto en `.venv-py310` y ejecutar pruebas allí. La sección 38 contiene conteos previos contradictorios de 157 y 158 pruebas completas; no se reconcilian en esta tarea.
+
+**Actualización (25-nov, pulido visual):** paleta propia (fondos grafito, azul #5B8CFF como acción principal y fichas cian, violeta, ámbar y verde por categoría, aplicadas también a puertos y gráficas); botones con texto y borde visibles, estados hover, pulsado y activo; nodos más grandes, plantilla más espaciada, paleta de nodos en filas con nombre y descripción, y selector de tema sincronizado. Solo cambia la vista. Pruebas de la Workbench OK.

@@ -304,8 +304,15 @@ def train_variational_qcnn(
     evaluator: Evaluator,
     config: VariationalTrainingConfig,
     rng: np.random.Generator,
+    callback=None,
 ) -> VariationalTrainingResult:
-    """Train with the configured optimizer; select the checkpoint on validation only."""
+    """Train with the configured optimizer; select the checkpoint on validation only.
+
+    ``callback(record)`` (optional) is called after every evaluated step with the
+    history record; returning ``False`` stops training with ``stop_reason
+    "cancelled"``. It never changes the random stream, so results are identical
+    with or without it.
+    """
     if not isinstance(config, VariationalTrainingConfig):
         raise TypeError("config must be a VariationalTrainingConfig instance.")
     train_x = np.asarray(train_features, dtype=float)
@@ -352,8 +359,9 @@ def train_variational_qcnn(
     best_weights, best_loss, best_step = weights.copy(), history[0]["validation_loss"], 0
     stale = 0
     stop_reason = "max_steps"
+    cancelled = callback is not None and callback(history[0]) is False
 
-    for step in range(1, config.max_steps + 1):
+    for step in range(1, 0 if cancelled else config.max_steps + 1):
         extra: dict[str, Any] = {}
         if config.optimizer in ("gd", "adam"):
             gradient, circuits = evaluator.gradient(weights, train_x, train_y, shots=shots, rng=rng)
@@ -389,6 +397,9 @@ def train_variational_qcnn(
             best_weights, best_loss, best_step, stale = weights.copy(), record["validation_loss"], step, 0
         else:
             stale += 1
+        if callback is not None and callback(record) is False:
+            cancelled = True
+            break
         if config.patience is not None and stale >= config.patience:
             stop_reason = "patience"
             break
@@ -398,6 +409,8 @@ def train_variational_qcnn(
         ):
             stop_reason = "circuit_budget"
             break
+    if cancelled:
+        stop_reason = "cancelled"
 
     return VariationalTrainingResult(
         initial_weights=np.asarray(initial_weights, dtype=float).copy(),
