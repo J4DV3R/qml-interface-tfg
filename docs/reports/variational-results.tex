@@ -27,11 +27,14 @@ persistidos en \ruta{results/variational/} mediante \ruta{experiments/plot\_vari
 \end{enumerate}
 \end{keybox}
 
-\begin{warnbox}[Nota posterior (24 de noviembre): el circuito solo usa 3 características y 5 pesos]
+\begin{warnbox}[Nota posterior (24--26 de noviembre): el circuito solo usa 3 características y 5 pesos]
 Un diagnóstico posterior (\ruta{results/diagnostics/light-cone/}; log, sección 37) muestra que la salida de este
 circuito no depende de la cuarta característica ni de los pesos $w_1$--$w_3$ de la segunda capa. Dos CNOT idénticas
-entre convolución y pooling se anulan. Las cifras de este informe son válidas para este circuito, pero describen un
-modelo con 3 características y 5 parámetros efectivos. Corregir la arquitectura es una decisión pendiente.
+entre convolución y pooling se anulan. Las cifras de este informe son válidas para este circuito (\texttt{v1}), pero
+describen un modelo con 3 características y 5 parámetros efectivos. Las arquitecturas alternativas
+\texttt{v1-param-pool} y \texttt{qibo} ya están implementadas y validadas unitariamente en
+\ruta{src/qcnn\_architectures.py} (sección 40); su evaluación comparativa con el protocolo de la fase C sigue pendiente
+de la decisión de la tutoría.
 \end{warnbox}
 
 \section{Modelo y protocolo}

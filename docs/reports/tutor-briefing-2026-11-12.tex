@@ -1,15 +1,16 @@
 \documentclass[11pt,a4paper]{article}
 \input{report-preamble}
 \fancyhead[L]{\small\color{inkmuted}Resumen para la tutoría}
-\fancyhead[R]{\small\color{inkmuted}12 de noviembre de 2026 · actualizado el 24 de noviembre}
+\fancyhead[R]{\small\color{inkmuted}12 de noviembre de 2026 · actualizado el 27 de noviembre}
 \graphicspath{{figures/}}
 
 \title{\textbf{Resumen para la tutoría}\\[2pt]\large Estado del TFG y decisiones pendientes}
 \author{TFG «Plataforma para la experimentación con Quantum Machine Learning»}
-\date{12 de noviembre de 2026 · actualizado el 20 de noviembre (plan BSC, sección~\ref{sec:bsc}) y
-\textbf{el 24 de noviembre} (solicitud RES y hallazgo del circuito, sección~\ref{sec:cono})\\
-\small commits \texttt{dec0f0b}--\texttt{cbbf2a0} sobre \texttt{bc877bd} · Fuente: \ruta{docs/tutor-briefing-2026-11-12.md}
-y secciones 30--37 de \ruta{docs/TFG-technical-log.md}}
+\date{12 de noviembre de 2026 · actualizado el 20 de noviembre (plan BSC, sección~\ref{sec:bsc}),
+el 24 de noviembre (solicitud RES y cono de luz, sección~\ref{sec:cono}) y \textbf{el 27 de noviembre}
+(QML Workbench, adaptador Qililab y arquitecturas alternativas)\\
+\small commits \texttt{dec0f0b}--\texttt{b5abe03} + cambios locales · Fuente: \ruta{docs/tutor-briefing-2026-11-12.md}
+y secciones 30--41 de \ruta{docs/TFG-technical-log.md}}
 
 \begin{document}
 \maketitle
@@ -32,12 +33,19 @@ Estados usados:
   \item \textbf{Nueva línea variacional:} simulador rápido idéntico a Qibo y 4 optimizadores (GD, Adam, SPSA y
         secuencial). Fases A, B y C evaluadas en simulación; la fase C (10 particiones, 1280 entrenamientos,
         pre-registrada) es el resultado principal (secciones~\ref{sec:resultadosB} y~\ref{sec:faseC}).
-  \item \textbf{Preparación para el BSC sin acceso:} transpilador, ejecución por lotes, simulador que imita el chip,
-        mitigación de lectura y borrador de la solicitud RES (sección~\ref{sec:bsc}).
-  \item \textbf{Hallazgo del 24 de noviembre:} la salida del circuito actual ignora la cuarta característica y 3 de los
-        8 pesos, por dos CNOT que se anulan entre convolución y pooling (sección~\ref{sec:cono}).
-  \item \textbf{Documentación:} log técnico (secciones 30--37), informe de resultados con figuras y suite completa
-        de 138 pruebas OK.
+  \item \textbf{Preparación para el BSC sin acceso:} transpilador (con opción física \texttt{compact=False}), ejecución
+        por lotes, simulador que imita el chip, mitigación de lectura, adaptador \ruta{src/qililab\_adapter.py}, prueba
+        mínima \ruta{experiments/run\_qililab\_smoke.py}, guía \ruta{docs/bsc/pilot-execution.md} y borrador de la
+        solicitud RES (sección~\ref{sec:bsc}).
+  \item \textbf{Hallazgo del 24 de noviembre y arquitecturas alternativas (26-nov):} la salida del circuito \texttt{v1}
+        ignora la cuarta característica y 3 de los 8 pesos, por dos CNOT que se anulan entre convolución y pooling. Ya
+        están implementadas y validadas unitariamente \texttt{v1-param-pool} (12 pesos) y \texttt{qibo} (42 pesos) en
+        \ruta{src/qcnn\_architectures.py} (sección~\ref{sec:cono}).
+  \item \textbf{Interfaz QML Workbench (25-nov):} aplicación de escritorio en PySide6 con patrón MVC y flujos de nodos
+        editables (\ruta{src/workbench/}), con paridad verificada frente a la fase C y soporte para las tres arquitecturas.
+  \item \textbf{Documentación y validación:} log técnico (secciones 30--41), alineación de \ruta{requirements.txt} a
+        CPython 3.10.13 (\texttt{python3.10-variation}), informe de resultados con figuras y suite completa de
+        \textbf{180 pruebas OK} (Python 3.14.3, Qt \texttt{offscreen}; validación en CPython 3.10.13 pendiente).
 \end{enumerate}
 
 \section{Qué se necesita decidir}
@@ -56,9 +64,10 @@ Estados usados:
     \item quién figura como responsable de la solicitud a la RES;
     \item si hay un proyecto financiado que permita pedir acceso por la vía rápida (\textit{fast-track}).
   \end{itemize}
-  \item \textbf{Arquitectura del circuito} (sección~\ref{sec:cono}): ¿se corrige la cancelación de CNOT y se repite la
-        fase C (unas 7,5\,h de CPU), o se mantiene el circuito actual y se documenta como un modelo de 3 características
-        efectivas? Conviene decidirlo antes de enviar la solicitud RES y de escribir la memoria.
+  \item \textbf{Arquitectura del circuito} (sección~\ref{sec:cono}): ya existen \texttt{v1-param-pool} y \texttt{qibo}
+        implementadas y validadas unitariamente junto a \texttt{v1}. ¿Se aprueba evaluar y comparar las tres
+        arquitecturas con el protocolo pre-registrado de la fase C, o se mantiene solo \texttt{v1} documentado como
+        modelo de 3 características efectivas? Conviene decidirlo antes de enviar la solicitud RES y redactar la memoria.
 \end{enumerate}
 \end{keybox}
 
@@ -70,16 +79,20 @@ Estados usados:
 \toprule
 Componente & Estado & Evidencia \\
 \midrule
-QCNN de 4 qubits (codificación angular y de fase, convolución, pooling lógico) & \estado{Validado};
+QCNN de 4 qubits \texttt{v1} (codificación angular y de fase, convolución, pooling lógico) & \estado{Validado};
   \textbf{la salida solo usa 3 características y 5 pesos} (sec.~\ref{sec:cono}) &
-  Pruebas unitarias: suite completa, 138/138 OK el 20-nov; \ruta{results/\allowbreak diagnostics/\allowbreak light-cone/} \\
+  Suite completa: \textbf{180/180 OK} el 27-nov (Qt \texttt{offscreen}, Python 3.14.3); \ruta{results/\allowbreak diagnostics/\allowbreak light-cone/} \\
+Arquitecturas QCNN alternativas (\texttt{v1-param-pool}, \texttt{qibo}) & \estado{Validado} unitariamente; \textbf{no evaluado} &
+  \ruta{src/qcnn\_architectures.py}; \ruta{results/\allowbreak diagnostics/\allowbreak light-cone-*/} (log, §40) \\
+QML Workbench (interfaz PySide6 de flujos de nodos, MVC) & \estado{Validado} &
+  \ruta{src/workbench/}; 18 pruebas OK (log, §§38--40) \\
 Legado híbrido PyTorch + Adam & \estado{Evaluado} (histórico, $n=3$) & \ruta{results/\allowbreak initial-hybrid-adam/} \\
 QGD M1--M5 (actualización modular reversible) & \estado{Validado} unitariamente; \textbf{no evaluado} & Log, secciones 28--30; auditoría \\
 Ruido local corregido (matriz de densidad, shots independientes) & \estado{Validado} & Log, sección 30 \\
 Línea variacional (GD, Adam, SPSA, secuencial tipo Rotosolve/NFT) & \estado{Evaluado} en simulación & \ruta{results/variational/} (log, secciones 31--34) \\
-Preparación para hardware (transpilación, ejecución por lotes, mitigación de lectura, simulador que imita el chip) &
-  \estado{Validado} en simulación & \ruta{docs/bsc/README.md}; log, secciones 35--36; incluida en la suite completa \\
-Ejecución en hardware real (BSC, MareNostrum5-Ona) & \estado{Propuesto} & Sin acceso ni ejecuciones; el adaptador de Qililab es un esqueleto \\
+Preparación para hardware (transpilación, lotes, mitigación de lectura, mock, \ruta{qililab\_adapter.py}, \ruta{run\_qililab\_smoke.py}) &
+  \estado{Validado} en simulación / mocks & \ruta{docs/bsc/README.md}; \ruta{docs/bsc/pilot-execution.md}; 21 pruebas (log, §§35--36, 41) \\
+Ejecución en hardware real (BSC, MareNostrum5-Ona) & \estado{Propuesto} & Sin acceso ni ejecuciones en QPU; \ruta{qililab\_adapter.py} sin validar en Ona \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -290,17 +303,20 @@ particiones) y presentar los de la fase B como un caso concreto. El informe
 \textbf{Qué se puede llevar al chip:} solo la línea variacional. QGD no es viable, porque sus puertas
 multicontroladas hacen el circuito demasiado profundo.
 
-\textbf{Hecho sin acceso} (fase 1; \estado{Implementado} y \estado{Validado} en simulación; suite completa de 138 pruebas OK):
+\textbf{Hecho sin acceso} (fase 1 y preparación piloto; \estado{Implementado} y \estado{Validado} en simulación/mocks; suite completa de 180 pruebas OK):
 \begin{itemize}
-  \item Transpilador propio (Qibo 0.1.11 no trae uno). Reubica los qubits, añade SWAPs donde el chip no tiene conexión
-        y descompone el circuito en puertas RX/RY/RZ/CZ. El resultado medido coincide exactamente con el circuito original.
+  \item Transpilador propio (Qibo 0.1.11 no trae uno). Reubica los qubits, añade SWAPs donde el chip no tiene conexión,
+        descompone el circuito en puertas RX/RY/RZ/CZ y soporta \texttt{compact=False} para emitir índices físicos reales
+        hacia Qililab. El resultado medido coincide exactamente con el circuito original.
   \item Ejecución de circuitos por lotes, porque en el BSC el coste está dominado por cada conexión.
   \item Un simulador que se comporta como el chip: solo acepta puertas nativas sobre qubits conectados, añade ruido y
         error de lectura.
   \item Calibración y corrección del error de lectura.
-  \item Inferencia de los checkpoints entrenados, ya probada en seco.
-  \item Scripts Slurm para MN5 y para Ona.
-  \item El adaptador de Qililab es todavía un \textbf{esqueleto}: falta la API concreta del BSC.
+  \item Inferencia de los checkpoints entrenados, ya probada en seco (\ruta{results/hardware/local-pilot/}).
+  \item Adaptador \ruta{src/qililab\_adapter.py} (llamada pública \texttt{qililab.execute}), prueba mínima
+        \ruta{experiments/run\_qililab\_smoke.py} (1--2 qubits) y guía operativa \ruta{docs/bsc/pilot-execution.md}
+        (con los 8 datos técnicos pendientes del tutor). \textbf{Sin validar todavía en QPU real.}
+  \item Scripts Slurm para MN5 y para Ona (con parámetros de cuenta/QoS/módulos pendientes de confirmar).
 \end{itemize}
 
 \begin{table}[H]
@@ -355,8 +371,9 @@ Fase & Contenido & Estado \\
 \begin{enumerate}
   \item ¿Entra el BSC en el TFG? ¿Con H1 solo, o también H2?
   \item ¿Quién figura como responsable de la solicitud? ¿Hay un proyecto financiado para pedir la vía rápida?
-  \item ¿Hay contacto en el BSC o en Qilimanjaro para conocer la topología del chip, sus puertas nativas y la API de
-        Qililab antes de enviar la solicitud?
+  \item ¿Hay contacto en el BSC o en Qilimanjaro para confirmar los 8 datos operativos de
+        \ruta{docs/bsc/pilot-execution.md} (runcard, versiones Qililab/Qibo, topología, puertas nativas, cuenta/QoS/partición
+        Slurm, límite de shots, formato de \texttt{counts()} y política de lotes)?
   \item ¿Qué fecha de entrega tiene la memoria?
 \end{enumerate}
 
@@ -394,16 +411,23 @@ Pesos $w_1, w_2, w_3$ de la capa 2 & \textbf{No} \\
         (secuencial). En hardware, el circuito efectivo es de 3 qubits.
 \end{itemize}
 
+\textbf{Arquitecturas alternativas ya implementadas} (26-nov, log §40; \estado{Validado} unitariamente, \textbf{no evaluado}):
+\ruta{src/qcnn\_architectures.py} añade, sin modificar \texttt{v1}, \texttt{v1-param-pool} (pooling parametrizado con una
+CNOT, 12 pesos; las 4 características y los 12 pesos influyen) y \texttt{qibo} (ansatz \texttt{QuantumCNN}, 42 pesos, 40
+con influencia, 3 CNOT, $\sim$15 veces más lento por paso). Aún no están integradas en el transpilador ni en el estimador
+de coste BSC.
+
 \begin{table}[H]
 \centering\small
 \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{5cm} >{\raggedright\arraybackslash}X}
 \toprule
 Opción & Qué implica \\
 \midrule
-Corregir el circuito (por ejemplo, un pooling con rotación controlada parametrizada) & Modelo nuevo: hay que repetir la
-  fase C (unas 7,5\,h de CPU en exacto), regenerar los informes y revisar la solicitud RES \\
-Mantenerlo & Documentar la limitación en la memoria, describir el modelo como de 3 características efectivas y,
-  opcionalmente, podar el qubit 3 para el hardware \\
+Evaluar y comparar \texttt{v1}, \texttt{v1-param-pool} y \texttt{qibo} con el protocolo de la fase C &
+  Ejecución multi-partición (pre-registrada, test una vez, Holm), ampliación del transpilador si se adopta otra
+  arquitectura, regeneración de informes y revisión de la solicitud RES \\
+Mantener solo \texttt{v1} como modelo oficial & Documentar la limitación en la memoria, describir el modelo como de 3
+  características efectivas y, opcionalmente, podar el qubit 3 para el hardware \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -411,11 +435,12 @@ Mantenerlo & Documentar la limitación en la memoria, describir el modelo como d
 \section{Fuentes en el repositorio}
 
 \begin{itemize}
-  \item \ruta{docs/TFG-technical-log.md}: secciones 28--37.
-  \item \ruta{results/diagnostics/light-cone/README.md}: hallazgo del cono de luz.
+  \item \ruta{docs/TFG-technical-log.md}: secciones 28--41.
+  \item \ruta{results/diagnostics/light-cone/}, \ruta{light-cone-v1-param-pool/} y \ruta{light-cone-qibo/}: hallazgo del cono de luz.
+  \item \ruta{docs/workbench/README.md}: interfaz QML Workbench (PySide6, MVC).
   \item \ruta{docs/bsc/res-application-draft.md}: borrador de la solicitud RES.
   \item \ruta{docs/reports/guia-fundamentos-tutoria.pdf}: guía de fundamentos para preparar la reunión.
-  \item \ruta{docs/bsc/README.md} y \ruta{docs/bsc/cost-estimates.md}: plan BSC y datos técnicos.
+  \item \ruta{docs/bsc/README.md}, \ruta{docs/bsc/pilot-execution.md} y \ruta{docs/bsc/cost-estimates.md}: plan BSC, guía del piloto y datos técnicos.
   \item \ruta{docs/experimental-protocol.md}: protocolo variacional.
   \item README de cada fase, en \ruta{results/variational/}:
   \begin{itemize}

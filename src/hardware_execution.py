@@ -13,11 +13,11 @@
   BSC chip.
 * :func:`calibrate_readout` / :func:`mitigate_z_expectation` implement the
   standard single-qubit confusion-matrix inversion.
-* :class:`QililabExecutor` is the integration point for the BSC chips. It is
-  intentionally a skeleton: the Qililab API (runcard, connection, execution
-  arguments and result format) must be taken from the BSC/Qilimanjaro
-  documentation once access is granted, and nothing here has been run on
-  hardware.
+* :class:`QililabExecutor` is the integration boundary for the BSC chips. It
+  defaults to :mod:`src.qililab_adapter` (calling the public
+  ``qililab.execute(circuit, runcard, nshots=...)`` interface) and accepts a
+  custom adapter module when deployment-specific arguments are needed. Nothing
+  here has been validated on real QPU hardware yet.
 """
 
 from __future__ import annotations

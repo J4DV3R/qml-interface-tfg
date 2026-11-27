@@ -215,11 +215,11 @@ class QCNNModel(nn.Module):
         executor: CircuitExecutor | None = None,
     ):
         super().__init__()
-        if not isinstance(n_qubits, int) or n_qubits < 2:
+        if isinstance(n_qubits, bool) or not isinstance(n_qubits, int) or n_qubits < 2:
             raise ValueError("n_qubits must be an integer of at least 2.")
         if n_qubits & (n_qubits - 1):
             raise ValueError("n_qubits must be a power of two for this pooling layout.")
-        if not isinstance(n_outputs, int) or n_outputs < 1:
+        if isinstance(n_outputs, bool) or not isinstance(n_outputs, int) or n_outputs < 1:
             raise ValueError("n_outputs must be a positive integer.")
         if n_outputs >= n_qubits or n_outputs & (n_outputs - 1):
             raise ValueError("n_outputs must be a power of two smaller than n_qubits.")

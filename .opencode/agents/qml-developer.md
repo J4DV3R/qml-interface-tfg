@@ -56,47 +56,47 @@ devuelve una nota concreta para que el coordinador decida.
 
 ## Reglas técnicas
 
-- Mantén separados el legado híbrido (`src/hybrid_model.py`, `src/training.py`)
-  y la nueva ruta QGD M1-M5 (`src/qcnn_engine.py`, `src/optimizers.py`,
-  `src/quantum_update.py`, `src/quantum_training.py`,
-  `src/circuit_execution.py`, `experiments/run_quantum_training.py`). La suite
-  completa pasó 92 pruebas el 10 de noviembre de 2026 en una revisión de trabajo
-  sucia basada en `164eaee2b05ed53f9950afe8a272ca91f5e292df`; 73 y 88 son
-  conteos históricos. Solo existen cinco perfiles exploratorios de dos pasos y
-  screens S0/G0/U0 parciales; no equivalen a evaluación de rendimiento ni a
-  ejecución en hardware. Con `b=5/lr=0.1` el delta entero de QGD es cero y los
-  pesos solo se cuantizan; U0 tiene tres fallos y el ruido de Qibo se muestrea
-  una vez por ejecución, no por shot. No cambies `b/lr` ni la política de U0 sin
-  decisión del tutor. El objetivo indicado por el tutor es preparar hardware
-  y evitar el ajuste clásico de pesos; la implementación aún no lo satisface de
-  extremo a extremo.
-- `requirements.txt` está aprobado para el commit de cierre del 10 de noviembre
-  de 2026 (122→51 líneas, UTF-16LE→UTF-8); no lo modifiques de nuevo sin nueva
-  aprobación. La eliminación de `load_binary_iris()` se documenta como ruptura
-  intencionada; no la restaures sin una decisión posterior.
-- Sin executor, el primer gradiente es exacto/sin ruido, los posteriores usan
-  shots si se configuran y el update se simula en estado-vector exacto. Con
-  `--measured-execution` o ruido solicitado, se usan counts finitos también para
-  gradientes y actualización. El host prepara entradas, gradientes y schedule,
-  procesa counts, calcula pérdidas y controla el bucle. La actualización es
-  modular, no clipping; los gradientes fuera de rango se saturan. El ruido local
-  es solo sensibilidad del simulador, no calibración de hardware.
-- `src/quantum_training.py` no importa Torch; el runner sí carga indirectamente
-  Torch vía `src.datasets` y convierte sus tensores en la frontera de entrada.
+- Mantén separadas las líneas de código:
+  - **Legado híbrido:** `src/hybrid_model.py`, `src/training.py` (congelado).
+  - **Ruta QGD M1-M5:** `src/qcnn_engine.py`, `src/optimizers.py`,
+    `src/quantum_update.py`, `src/quantum_training.py`,
+    `src/circuit_execution.py`, `experiments/run_quantum_training.py`.
+  - **Línea variacional y arquitecturas:** `src/fast_qcnn.py`,
+    `src/variational_training.py`, `src/qcnn_architectures.py` (`v1` intacto
+    para reproducir fases A-C; `v1-param-pool` y `qibo` validadas
+    unitariamente).
+  - **Preparación BSC / Qililab:** `src/hardware_cost.py`,
+    `src/transpilation.py` (`compact=True` para simulador, `compact=False` para
+    índices físicos reales), `src/hardware_execution.py`,
+    `src/qililab_adapter.py`, `experiments/run_qililab_smoke.py`,
+    `experiments/run_hardware_inference.py`.
+  - **QML Workbench (PySide6, MVC):** `src/workbench/model/` y
+    `src/workbench/controller/` **no deben importar PySide6/Qt**; solo
+    `src/workbench/view/` importa Qt.
+- **Compatibilidad Python 3.10.13:** conserva sintaxis y APIs compatibles con
+  CPython 3.10.13 (usa `from __future__ import annotations`, evita imports
+  exclusivos de Python 3.11+).
+- La suite completa pasa **180 pruebas OK** (27-nov-2026, Qt `offscreen`,
+  Python 3.14.3; validación en `.venv-py310` pendiente). Consulta `AGENTS.md` y
+  `docs/TFG-technical-log.md` (§§ 30-41) para el detalle vigente.
+- **Ruido corregido:** el modo por defecto es `density_matrix` exacto con
+  `PauliNoiseChannel` y shots independientes (`legacy_shared_trajectory` se
+  conserva solo para reproducir los JSON M5/screens previos al 12-nov).
+- No cambies `b/lr` por defecto de QGD, la rejilla modular ni la política de U0
+  sin decisión del tutor. La eliminación de `load_binary_iris()` es intencionada;
+  usa `load_binary_iris_splits()`.
+- `src/quantum_training.py` y `src/variational_training.py` no importan Torch.
 - No uses test para seleccionar pesos, hiperparámetros ni la mejor época.
-- Conserva las particiones, semillas y el ajuste de preprocesamiento solo con
-  train.
+- Conserva las particiones, semillas separadas (dataset / inicialización /
+  ejecución) y el ajuste de preprocesamiento solo con train.
 - No inventes métricas ni resultados. Si ejecutas una prueba, reporta el
   comando, la salida y la revisión.
 - No ejecutes experimentos completos ni la batería completa de pruebas sin
   petición explícita. Para validar, ejecuta solo las pruebas relacionadas y con
-  aprobación.
-- No instales paquetes ni cambies dependencias.
-- La auditoría de HEAD encontró `requirements.txt` amplio, scikit-learn sin pin
-  y `torchvision` sin import directo. La versión actual, ya aprobada para el
-  commit de cierre, elimina el stack Jupyter y `torchvision`; no la modifiques
-  ni fijes versiones nuevas sin petición/decisión. `qml_env\Scripts\python.exe`
-  es el entorno local verificado.
+  aprobación (usa `QT_QPA_PLATFORM=offscreen` para pruebas de Workbench).
+- No instales paquetes ni modifiques `requirements.txt` (alineado a
+  `origin/python3.10-variation` + `PySide6==6.12.0`, aprobado el 25-nov) sin
+  aprobación. `qml_env\Scripts\python.exe` es el entorno local verificado.
 - No hagas commits, pushes ni cambios globales.
 
 ## Formato de entrega

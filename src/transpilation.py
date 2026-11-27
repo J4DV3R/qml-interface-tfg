@@ -217,11 +217,16 @@ def transpile(
     *,
     measured: Sequence[int] = (0,),
     layout: dict[int, int] | None = None,
+    compact: bool = True,
 ) -> TranspiledCircuit:
     """Route and decompose a measurement-free logical Qibo circuit.
 
     ``measured`` are the logical qubits to measure at the end; measurements are
     appended on their final physical positions (SWAPs move logical qubits).
+    When ``compact=True`` (default, intended for local simulators), gate indices
+    are compacted to ``0..len(used)-1``; when ``compact=False`` (intended for
+    hardware adapters such as Qililab), gates are emitted directly on the real
+    physical qubit indices ``0..max(used)``.
     """
     edges = tuple(sorted({tuple(sorted(e)) for e in edges}))
     graph = _graph(edges)
@@ -265,17 +270,21 @@ def transpile(
     ops = _merge_rotations(ops)
 
     used = sorted({q for _, qubits, _ in ops for q in qubits} | set(current.values()))
-    compact = {p: i for i, p in enumerate(used)}
-    out = Circuit(len(used))
+    if compact:
+        qubit_map = {p: i for i, p in enumerate(used)}
+        out = Circuit(len(used))
+    else:
+        qubit_map = {p: p for p in used}
+        out = Circuit(max(used) + 1)
     for name, qubits, theta in ops:
-        q = tuple(compact[p] for p in qubits)
+        q = tuple(qubit_map[p] for p in qubits)
         if name == "CZ":
             out.add(gates.CZ(*q))
         else:
             out.add(getattr(gates, name)(q[0], theta=float(theta)))
     measured_logical = tuple(int(q) for q in measured)
     measured_physical = tuple(current[q] for q in measured_logical)
-    out.add(gates.M(*(compact[p] for p in measured_physical)))
+    out.add(gates.M(*(qubit_map[p] for p in measured_physical)))
 
     one_qubit = sum(1 for name, _, _ in ops if name != "CZ")
     two_qubit = sum(1 for name, _, _ in ops if name == "CZ")
@@ -289,8 +298,8 @@ def transpile(
         "swaps": swaps,
         "physical_qubits_used": len(used),
     }
-    compact_edges = tuple(
-        (compact[a], compact[b]) for a, b in edges if a in compact and b in compact
+    mapped_edges = tuple(
+        (qubit_map[a], qubit_map[b]) for a, b in edges if a in qubit_map and b in qubit_map
     )
     return TranspiledCircuit(
         circuit=out,
@@ -299,7 +308,7 @@ def transpile(
         final_layout=dict(current),
         measured_logical=measured_logical,
         measured_physical=measured_physical,
-        coupling_edges=compact_edges,
+        coupling_edges=mapped_edges,
         stats=stats,
     )
 

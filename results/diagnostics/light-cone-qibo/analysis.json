@@ -1,0 +1,866 @@
+{
+  "kind": "light-cone-diagnostic",
+  "provenance": {
+    "git_revision": "b5abe03380c8926a87ee0aa2997c1e4171779481",
+    "working_tree_dirty": true,
+    "working_tree_status": [
+      " M experiments/diagnose_light_cone.py",
+      " M src/fast_qcnn.py",
+      " M src/variational_training.py",
+      " M src/workbench/model/algorithms/qcnn.py",
+      "?? results/diagnostics/light-cone-v1-param-pool/analysis.json",
+      "?? results/diagnostics/light-cone-v1-param-pool/analysis.md",
+      "?? src/qcnn_architectures.py"
+    ],
+    "uncommitted_diff_sha256": "e28f307bfe010d96a89da9a8e063607060b51fc7657c74c31be9caa3cecfddea",
+    "untracked_code_sha256": [
+      {
+        "path": "src/qcnn_architectures.py",
+        "sha256": "1c5c684d384ecab3ac47f2141c8facb028b65d7f17f94f86c8bf91410ef35f32"
+      }
+    ],
+    "python": "3.14.3 (tags/v3.14.3:323c59a, Feb  3 2026, 16:04:56) [MSC v.1944 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "packages": {
+      "numpy": "2.5.3",
+      "scipy": "1.18.1",
+      "qibo": "0.1.11",
+      "scikit-learn": "1.9.1",
+      "torch": "2.14.0"
+    },
+    "command_argv": [
+      "C:\\Users\\jadve\\Documents\\UPO\\qml-interface-tfg\\qml_env\\Scripts\\python.exe",
+      "-m",
+      "experiments.run_variational_benchmark",
+      "C:\\Users\\jadve\\Documents\\UPO\\qml-interface-tfg\\experiments\\diagnose_light_cone.py",
+      "--architecture",
+      "qibo",
+      "--output-dir",
+      "results/diagnostics/light-cone-qibo"
+    ]
+  },
+  "arguments": {
+    "samples": 40,
+    "seed": 2026,
+    "architecture": "qibo"
+  },
+  "tolerance": 1e-09,
+  "architecture_summary": {
+    "architecture": "qibo",
+    "n_qubits": 4,
+    "n_layers": 2,
+    "weight_shape": [
+      2,
+      21
+    ],
+    "trainable_weights": 42,
+    "parametrized_occurrences": 102,
+    "cnot_count": 3,
+    "readout_qubit": 3,
+    "param_labels": [
+      "conv0",
+      "conv1",
+      "conv2",
+      "conv3",
+      "conv4",
+      "conv5",
+      "conv6",
+      "conv7",
+      "conv8",
+      "conv9",
+      "conv10",
+      "conv11",
+      "conv12",
+      "conv13",
+      "conv14",
+      "pool0",
+      "pool1",
+      "pool2",
+      "pool3",
+      "pool4",
+      "pool5"
+    ]
+  },
+  "encodings": [
+    {
+      "architecture": {
+        "architecture": "qibo",
+        "n_qubits": 4,
+        "n_layers": 2,
+        "weight_shape": [
+          2,
+          21
+        ],
+        "trainable_weights": 42,
+        "parametrized_occurrences": 102,
+        "cnot_count": 3,
+        "readout_qubit": 3,
+        "param_labels": [
+          "conv0",
+          "conv1",
+          "conv2",
+          "conv3",
+          "conv4",
+          "conv5",
+          "conv6",
+          "conv7",
+          "conv8",
+          "conv9",
+          "conv10",
+          "conv11",
+          "conv12",
+          "conv13",
+          "conv14",
+          "pool0",
+          "pool1",
+          "pool2",
+          "pool3",
+          "pool4",
+          "pool5"
+        ]
+      },
+      "encoding": "angle",
+      "samples": 40,
+      "max_abs_output_change_per_feature": [
+        0.6573104021659921,
+        0.4850793492273205,
+        0.8554912699111737,
+        0.564472934125908
+      ],
+      "features_without_influence": [],
+      "max_abs_output_change_per_weight": [
+        [
+          0.7323225821720145,
+          0.7892208089368177,
+          1.0257079918900942,
+          0.7917338994241322,
+          0.7513333141861969,
+          0.5969621110042592,
+          0.9110471096061176,
+          0.8760784204411807,
+          0.6814606886582543,
+          0.9648334671006564,
+          0.8372238998363675,
+          0.8247727675382185,
+          0.8651623702223564,
+          0.5812923104850098,
+          0.7893694067322625,
+          0.8359657980627716,
+          0.6581031846045008,
+          0.5879409455770297,
+          0.5206544725083894,
+          0.9659335242427651,
+          8.326672684688674e-16
+        ],
+        [
+          0.7820148968254186,
+          0.5610483704574806,
+          0.7552225171096991,
+          1.0422223550856895,
+          0.5463418832464276,
+          0.8027856778703043,
+          1.0118729052529054,
+          0.7277165901690593,
+          0.8780399758762014,
+          0.6534059146662798,
+          1.0673996254114835,
+          0.8261781544733795,
+          0.964760289440302,
+          0.9343126498238183,
+          0.36237752790551775,
+          0.6800768619443096,
+          0.35811980160086004,
+          0.5421017862182058,
+          0.7776993960120941,
+          1.097955735290915,
+          3.3306690738754696e-16
+        ]
+      ],
+      "weights_without_influence": [
+        [
+          0,
+          "pool5"
+        ],
+        [
+          1,
+          "pool5"
+        ]
+      ],
+      "max_abs_parameter_shift_contribution_per_occurrence": {
+        "000-layer0-rx0-conv0": 0.3082597981860684,
+        "001-layer0-ry0-conv1": 0.34940321871499824,
+        "002-layer0-rz0-conv2": 0.41342561865535976,
+        "003-layer0-rx1-conv3": 0.45800744079837,
+        "004-layer0-ry1-conv4": 0.31999094391437904,
+        "005-layer0-rz1-conv5": 0.4568767501199621,
+        "006-layer0-rzz01-conv6": 0.4654787942460047,
+        "007-layer0-ryy01-conv7": 0.4822390538950779,
+        "008-layer0-rxx01-conv8": 0.36248052830928557,
+        "009-layer0-rx0-conv9": 0.318796163893852,
+        "010-layer0-ry0-conv10": 0.42174728201241707,
+        "011-layer0-rz0-conv11": 0.35391820028545207,
+        "012-layer0-rx1-conv12": 0.46838822441631384,
+        "013-layer0-ry1-conv13": 0.37715134765400293,
+        "014-layer0-rz1-conv14": 0.4469350888107623,
+        "015-layer0-rx2-conv0": 0.3886695621088784,
+        "016-layer0-ry2-conv1": 0.48379204685305016,
+        "017-layer0-rz2-conv2": 0.34165207692081045,
+        "018-layer0-rx3-conv3": 0.4127726098184473,
+        "019-layer0-ry3-conv4": 0.3324913639714932,
+        "020-layer0-rz3-conv5": 0.3197272540943098,
+        "021-layer0-rzz23-conv6": 0.41115118482750135,
+        "022-layer0-ryy23-conv7": 0.34612706990726555,
+        "023-layer0-rxx23-conv8": 0.5688813362168877,
+        "024-layer0-rx2-conv9": 0.5630353387830261,
+        "025-layer0-ry2-conv10": 0.34040240864004134,
+        "026-layer0-rz2-conv11": 0.3656305646850316,
+        "027-layer0-rx3-conv12": 0.40874216384154205,
+        "028-layer0-ry3-conv13": 0.3091093281661834,
+        "029-layer0-rz3-conv14": 0.27678211807641223,
+        "030-layer0-rx1-conv0": 0.41647535646337575,
+        "031-layer0-ry1-conv1": 0.4299798278573736,
+        "032-layer0-rz1-conv2": 0.44799742881358684,
+        "033-layer0-rx2-conv3": 0.3009228068778047,
+        "034-layer0-ry2-conv4": 0.37958271728337484,
+        "035-layer0-rz2-conv5": 0.5657898104679584,
+        "036-layer0-rzz12-conv6": 0.483387109224945,
+        "037-layer0-ryy12-conv7": 0.3286371019247804,
+        "038-layer0-rxx12-conv8": 0.5057649582789041,
+        "039-layer0-rx1-conv9": 0.28616140755518094,
+        "040-layer0-ry1-conv10": 0.26133223519738435,
+        "041-layer0-rz1-conv11": 0.34038134879825827,
+        "042-layer0-rx2-conv12": 0.5688058428918251,
+        "043-layer0-ry2-conv13": 0.5035856955578923,
+        "044-layer0-rz2-conv14": 0.44547740382127965,
+        "045-layer0-rx3-conv0": 0.3681900040430457,
+        "046-layer0-ry3-conv1": 0.2614204829911858,
+        "047-layer0-rz3-conv2": 0.4279130172889027,
+        "048-layer0-rx0-conv3": 0.38304759618450546,
+        "049-layer0-ry0-conv4": 0.34314855849738635,
+        "050-layer0-rz0-conv5": 0.4344799943218223,
+        "051-layer0-rzz30-conv6": 0.4692040023565097,
+        "052-layer0-ryy30-conv7": 0.622495995439129,
+        "053-layer0-rxx30-conv8": 0.5366914069873778,
+        "054-layer0-rx3-conv9": 0.615551704060116,
+        "055-layer0-ry3-conv10": 0.38001042575791677,
+        "056-layer0-rz3-conv11": 0.5831189645782773,
+        "057-layer0-rx0-conv12": 0.36132130248894545,
+        "058-layer0-ry0-conv13": 0.33599141855589476,
+        "059-layer0-rz0-conv14": 0.4127943664109896,
+        "060-layer0-rx2-pool0": 0.38192554234922743,
+        "061-layer0-ry2-pool1": 0.5174656638611945,
+        "062-layer0-rz2-pool2": 0.571807364325273,
+        "063-layer0-rx0-pool3": 0.41099201354816417,
+        "064-layer0-ry0-pool4": 0.39011236651377224,
+        "065-layer0-rz0-pool5": 2.3592239273284576e-16,
+        "066-layer0-rz2--pool2": 0.6076390971799157,
+        "067-layer0-ry2--pool1": 0.4611306599477917,
+        "068-layer0-rx2--pool0": 0.46221137966296544,
+        "069-layer0-rx3-pool0": 0.3508437106288809,
+        "070-layer0-ry3-pool1": 0.4025206804045671,
+        "071-layer0-rz3-pool2": 0.6797534583584128,
+        "072-layer0-rx1-pool3": 0.26873325976747825,
+        "073-layer0-ry1-pool4": 0.4276790480887461,
+        "074-layer0-rz1-pool5": 2.220446049250313e-16,
+        "075-layer0-rz3--pool2": 0.5784444295775303,
+        "076-layer0-ry3--pool1": 0.3925206654426169,
+        "077-layer0-rx3--pool0": 0.4583644531527693,
+        "078-layer1-rx2-conv0": 0.4622113796629654,
+        "079-layer1-ry2-conv1": 0.42534149723165693,
+        "080-layer1-rz2-conv2": 0.4787620697861715,
+        "081-layer1-rx3-conv3": 0.4583644531527693,
+        "082-layer1-ry3-conv4": 0.4939614070644014,
+        "083-layer1-rz3-conv5": 0.38191363749843754,
+        "084-layer1-rzz23-conv6": 0.40578915821571504,
+        "085-layer1-ryy23-conv7": 0.4171676685797798,
+        "086-layer1-rxx23-conv8": 0.453831818787537,
+        "087-layer1-rx2-conv9": 0.5512348681320798,
+        "088-layer1-ry2-conv10": 0.4635469959516533,
+        "089-layer1-rz2-conv11": 0.4970478651777662,
+        "090-layer1-rx3-conv12": 0.8387143432409638,
+        "091-layer1-ry3-conv13": 0.5864178108872018,
+        "092-layer1-rz3-conv14": 0.7312739052511177,
+        "093-layer1-rx3-pool0": 0.5705148840237338,
+        "094-layer1-ry3-pool1": 0.6223055487431388,
+        "095-layer1-rz3-pool2": 0.5463948246876421,
+        "096-layer1-rx2-pool3": 0.4803835019406033,
+        "097-layer1-ry2-pool4": 0.6716551027409302,
+        "098-layer1-rz2-pool5": 1.3877787807814457e-16,
+        "099-layer1-rz3--pool2": 0.44512176180805807,
+        "100-layer1-ry3--pool1": 0.4689127264283575,
+        "101-layer1-rx3--pool0": 0.5451191159940421
+      },
+      "live_occurrences": 99,
+      "total_occurrences": 102,
+      "structural_degree_per_weight": {
+        "0,conv0": 4,
+        "0,conv1": 4,
+        "0,conv2": 4,
+        "0,conv3": 4,
+        "0,conv4": 4,
+        "0,conv5": 4,
+        "0,conv6": 4,
+        "0,conv7": 4,
+        "0,conv8": 4,
+        "0,conv9": 4,
+        "0,conv10": 4,
+        "0,conv11": 4,
+        "0,conv12": 4,
+        "0,conv13": 4,
+        "0,conv14": 4,
+        "0,pool0": 4,
+        "0,pool1": 4,
+        "0,pool2": 4,
+        "0,pool3": 2,
+        "0,pool4": 2,
+        "0,pool5": 2,
+        "1,conv0": 1,
+        "1,conv1": 1,
+        "1,conv2": 1,
+        "1,conv3": 1,
+        "1,conv4": 1,
+        "1,conv5": 1,
+        "1,conv6": 1,
+        "1,conv7": 1,
+        "1,conv8": 1,
+        "1,conv9": 1,
+        "1,conv10": 1,
+        "1,conv11": 1,
+        "1,conv12": 1,
+        "1,conv13": 1,
+        "1,conv14": 1,
+        "1,pool0": 2,
+        "1,pool1": 2,
+        "1,pool2": 2,
+        "1,pool3": 1,
+        "1,pool4": 1,
+        "1,pool5": 1
+      },
+      "effective_trigonometric_degree_per_weight": {
+        "0,conv0": [
+          4
+        ],
+        "0,conv1": [
+          4
+        ],
+        "0,conv2": [
+          4
+        ],
+        "0,conv3": [
+          4
+        ],
+        "0,conv4": [
+          4
+        ],
+        "0,conv5": [
+          4
+        ],
+        "0,conv6": [
+          4
+        ],
+        "0,conv7": [
+          4
+        ],
+        "0,conv8": [
+          4
+        ],
+        "0,conv9": [
+          4
+        ],
+        "0,conv10": [
+          4
+        ],
+        "0,conv11": [
+          4
+        ],
+        "0,conv12": [
+          4
+        ],
+        "0,conv13": [
+          4
+        ],
+        "0,conv14": [
+          4
+        ],
+        "0,pool0": [
+          4
+        ],
+        "0,pool1": [
+          4
+        ],
+        "0,pool2": [
+          4
+        ],
+        "0,pool3": [
+          2
+        ],
+        "0,pool4": [
+          2
+        ],
+        "0,pool5": [
+          0
+        ],
+        "1,conv0": [
+          1
+        ],
+        "1,conv1": [
+          1
+        ],
+        "1,conv2": [
+          1
+        ],
+        "1,conv3": [
+          1
+        ],
+        "1,conv4": [
+          1
+        ],
+        "1,conv5": [
+          1
+        ],
+        "1,conv6": [
+          1
+        ],
+        "1,conv7": [
+          1
+        ],
+        "1,conv8": [
+          1
+        ],
+        "1,conv9": [
+          1
+        ],
+        "1,conv10": [
+          1
+        ],
+        "1,conv11": [
+          1
+        ],
+        "1,conv12": [
+          1
+        ],
+        "1,conv13": [
+          1
+        ],
+        "1,conv14": [
+          1
+        ],
+        "1,pool0": [
+          2
+        ],
+        "1,pool1": [
+          2
+        ],
+        "1,pool2": [
+          2
+        ],
+        "1,pool3": [
+          1
+        ],
+        "1,pool4": [
+          1
+        ],
+        "1,pool5": [
+          0
+        ]
+      },
+      "circuits_per_sample": {
+        "parameter_shift_current": 205,
+        "parameter_shift_live_occurrences_only": 199,
+        "sequential_current": 246,
+        "sequential_effective_degree": 238
+      },
+      "fast_vs_qibo_max_abs_difference": 1.1102230246251565e-15
+    },
+    {
+      "architecture": {
+        "architecture": "qibo",
+        "n_qubits": 4,
+        "n_layers": 2,
+        "weight_shape": [
+          2,
+          21
+        ],
+        "trainable_weights": 42,
+        "parametrized_occurrences": 102,
+        "cnot_count": 3,
+        "readout_qubit": 3,
+        "param_labels": [
+          "conv0",
+          "conv1",
+          "conv2",
+          "conv3",
+          "conv4",
+          "conv5",
+          "conv6",
+          "conv7",
+          "conv8",
+          "conv9",
+          "conv10",
+          "conv11",
+          "conv12",
+          "conv13",
+          "conv14",
+          "pool0",
+          "pool1",
+          "pool2",
+          "pool3",
+          "pool4",
+          "pool5"
+        ]
+      },
+      "encoding": "phase",
+      "samples": 40,
+      "max_abs_output_change_per_feature": [
+        0.8401013394343602,
+        0.7306482955739215,
+        0.5578901213979476,
+        1.083505064453661
+      ],
+      "features_without_influence": [],
+      "max_abs_output_change_per_weight": [
+        [
+          0.658924670902039,
+          0.7167101867202856,
+          0.7484582503137863,
+          0.9241182684040206,
+          0.8543220908437649,
+          1.2704091405067452,
+          0.7720755334219092,
+          0.7415680908526372,
+          0.595818985460778,
+          0.7261751931269416,
+          0.9821260666403904,
+          0.8144042492334547,
+          0.9793978007169772,
+          1.1009981606479227,
+          0.9082578146862668,
+          0.6847243871982502,
+          0.6721642417006856,
+          0.8901937150303545,
+          0.4564534213695249,
+          0.7393017171443228,
+          7.771561172376096e-16
+        ],
+        [
+          0.6601022253268863,
+          0.612206967355978,
+          0.5453594688038341,
+          0.6994219207560897,
+          0.6704793477987798,
+          0.4901488707271744,
+          0.6249915237337922,
+          0.6753312688635892,
+          0.9172738295015874,
+          0.4908336598632113,
+          0.5065509456036752,
+          0.5323362021779692,
+          1.1581526104514475,
+          0.9990009633929634,
+          0.9744436389976039,
+          1.200983309484743,
+          0.3916327240470262,
+          0.48502331582116026,
+          0.7110956178959649,
+          1.1574307107698447,
+          3.3306690738754696e-16
+        ]
+      ],
+      "weights_without_influence": [
+        [
+          0,
+          "pool5"
+        ],
+        [
+          1,
+          "pool5"
+        ]
+      ],
+      "max_abs_parameter_shift_contribution_per_occurrence": {
+        "000-layer0-rx0-conv0": 0.27306871024030843,
+        "001-layer0-ry0-conv1": 0.4455449549313176,
+        "002-layer0-rz0-conv2": 0.38736728802071907,
+        "003-layer0-rx1-conv3": 0.37579850334582116,
+        "004-layer0-ry1-conv4": 0.37538119919473595,
+        "005-layer0-rz1-conv5": 0.36166691526106065,
+        "006-layer0-rzz01-conv6": 0.42788775356441133,
+        "007-layer0-ryy01-conv7": 0.4926106363631901,
+        "008-layer0-rxx01-conv8": 0.5568543938259501,
+        "009-layer0-rx0-conv9": 0.522479388140471,
+        "010-layer0-ry0-conv10": 0.40075463038514303,
+        "011-layer0-rz0-conv11": 0.553600198174568,
+        "012-layer0-rx1-conv12": 0.5635657943534951,
+        "013-layer0-ry1-conv13": 0.378109858545108,
+        "014-layer0-rz1-conv14": 0.4692542768422089,
+        "015-layer0-rx2-conv0": 0.4098615206166607,
+        "016-layer0-ry2-conv1": 0.4821444219681015,
+        "017-layer0-rz2-conv2": 0.4104337514310486,
+        "018-layer0-rx3-conv3": 0.3579055572000106,
+        "019-layer0-ry3-conv4": 0.30325561906414633,
+        "020-layer0-rz3-conv5": 0.4039179077563605,
+        "021-layer0-rzz23-conv6": 0.4107920986107473,
+        "022-layer0-ryy23-conv7": 0.39105992994561567,
+        "023-layer0-rxx23-conv8": 0.31483016445973916,
+        "024-layer0-rx2-conv9": 0.314187232666978,
+        "025-layer0-ry2-conv10": 0.29584114954418117,
+        "026-layer0-rz2-conv11": 0.32380686902880834,
+        "027-layer0-rx3-conv12": 0.40776731476574457,
+        "028-layer0-ry3-conv13": 0.474673015052268,
+        "029-layer0-rz3-conv14": 0.3688095271423512,
+        "030-layer0-rx1-conv0": 0.326937665836211,
+        "031-layer0-ry1-conv1": 0.47168871326917017,
+        "032-layer0-rz1-conv2": 0.3188171435656427,
+        "033-layer0-rx2-conv3": 0.3073497895560133,
+        "034-layer0-ry2-conv4": 0.3922579238650159,
+        "035-layer0-rz2-conv5": 0.2920134563914388,
+        "036-layer0-rzz12-conv6": 0.3268250051135498,
+        "037-layer0-ryy12-conv7": 0.34435572778535906,
+        "038-layer0-rxx12-conv8": 0.36434140839430884,
+        "039-layer0-rx1-conv9": 0.387355130597621,
+        "040-layer0-ry1-conv10": 0.4750000372348085,
+        "041-layer0-rz1-conv11": 0.36657656239442654,
+        "042-layer0-rx2-conv12": 0.47426905471650704,
+        "043-layer0-ry2-conv13": 0.3696940750041817,
+        "044-layer0-rz2-conv14": 0.47812653324240406,
+        "045-layer0-rx3-conv0": 0.36434587149516684,
+        "046-layer0-ry3-conv1": 0.46850098282569896,
+        "047-layer0-rz3-conv2": 0.4090424730660219,
+        "048-layer0-rx0-conv3": 0.28433249728677795,
+        "049-layer0-ry0-conv4": 0.5034449040989608,
+        "050-layer0-rz0-conv5": 0.34786841840949445,
+        "051-layer0-rzz30-conv6": 0.5708174864302671,
+        "052-layer0-ryy30-conv7": 0.3052192636666416,
+        "053-layer0-rxx30-conv8": 0.4029119006164691,
+        "054-layer0-rx3-conv9": 0.3792131073182454,
+        "055-layer0-ry3-conv10": 0.3675912597782638,
+        "056-layer0-rz3-conv11": 0.5168480156677693,
+        "057-layer0-rx0-conv12": 0.3439890944497463,
+        "058-layer0-ry0-conv13": 0.27221759027874726,
+        "059-layer0-rz0-conv14": 0.3941958685255577,
+        "060-layer0-rx2-pool0": 0.49646691176937985,
+        "061-layer0-ry2-pool1": 0.38580401143154486,
+        "062-layer0-rz2-pool2": 0.4825490730910309,
+        "063-layer0-rx0-pool3": 0.24815118644566758,
+        "064-layer0-ry0-pool4": 0.41152301075010533,
+        "065-layer0-rz0-pool5": 3.0531133177191805e-16,
+        "066-layer0-rz2--pool2": 0.4874398454157575,
+        "067-layer0-ry2--pool1": 0.30499506950001687,
+        "068-layer0-rx2--pool0": 0.39970596465793684,
+        "069-layer0-rx3-pool0": 0.4482132358276739,
+        "070-layer0-ry3-pool1": 0.37167376318170287,
+        "071-layer0-rz3-pool2": 0.3684512804201394,
+        "072-layer0-rx1-pool3": 0.2868299606973829,
+        "073-layer0-ry1-pool4": 0.5497858238511495,
+        "074-layer0-rz1-pool5": 2.7755575615628914e-16,
+        "075-layer0-rz3--pool2": 0.31581193367073157,
+        "076-layer0-ry3--pool1": 0.45808594975667327,
+        "077-layer0-rx3--pool0": 0.28931908424686875,
+        "078-layer1-rx2-conv0": 0.39970596465793723,
+        "079-layer1-ry2-conv1": 0.41528443612466426,
+        "080-layer1-rz2-conv2": 0.4075094598903588,
+        "081-layer1-rx3-conv3": 0.2893190842468689,
+        "082-layer1-ry3-conv4": 0.2674368436464455,
+        "083-layer1-rz3-conv5": 0.4428142869041708,
+        "084-layer1-rzz23-conv6": 0.4963275402857621,
+        "085-layer1-ryy23-conv7": 0.35768778874030926,
+        "086-layer1-rxx23-conv8": 0.35820825572574694,
+        "087-layer1-rx2-conv9": 0.3627486988430949,
+        "088-layer1-ry2-conv10": 0.49227412343888566,
+        "089-layer1-rz2-conv11": 0.44435305644831613,
+        "090-layer1-rx3-conv12": 0.48727880788362243,
+        "091-layer1-ry3-conv13": 0.4614649949058153,
+        "092-layer1-rz3-conv14": 0.24579764189903208,
+        "093-layer1-rx3-pool0": 0.5834582390331922,
+        "094-layer1-ry3-pool1": 0.3970456748271073,
+        "095-layer1-rz3-pool2": 0.44275845340097864,
+        "096-layer1-rx2-pool3": 0.5204893433719994,
+        "097-layer1-ry2-pool4": 0.47930617501209194,
+        "098-layer1-rz2-pool5": 3.3306690738754696e-16,
+        "099-layer1-rz3--pool2": 0.5905818191710794,
+        "100-layer1-ry3--pool1": 0.35788786182452836,
+        "101-layer1-rx3--pool0": 0.6101661613563599
+      },
+      "live_occurrences": 99,
+      "total_occurrences": 102,
+      "structural_degree_per_weight": {
+        "0,conv0": 4,
+        "0,conv1": 4,
+        "0,conv2": 4,
+        "0,conv3": 4,
+        "0,conv4": 4,
+        "0,conv5": 4,
+        "0,conv6": 4,
+        "0,conv7": 4,
+        "0,conv8": 4,
+        "0,conv9": 4,
+        "0,conv10": 4,
+        "0,conv11": 4,
+        "0,conv12": 4,
+        "0,conv13": 4,
+        "0,conv14": 4,
+        "0,pool0": 4,
+        "0,pool1": 4,
+        "0,pool2": 4,
+        "0,pool3": 2,
+        "0,pool4": 2,
+        "0,pool5": 2,
+        "1,conv0": 1,
+        "1,conv1": 1,
+        "1,conv2": 1,
+        "1,conv3": 1,
+        "1,conv4": 1,
+        "1,conv5": 1,
+        "1,conv6": 1,
+        "1,conv7": 1,
+        "1,conv8": 1,
+        "1,conv9": 1,
+        "1,conv10": 1,
+        "1,conv11": 1,
+        "1,conv12": 1,
+        "1,conv13": 1,
+        "1,conv14": 1,
+        "1,pool0": 2,
+        "1,pool1": 2,
+        "1,pool2": 2,
+        "1,pool3": 1,
+        "1,pool4": 1,
+        "1,pool5": 1
+      },
+      "effective_trigonometric_degree_per_weight": {
+        "0,conv0": [
+          4
+        ],
+        "0,conv1": [
+          4
+        ],
+        "0,conv2": [
+          4
+        ],
+        "0,conv3": [
+          4
+        ],
+        "0,conv4": [
+          4
+        ],
+        "0,conv5": [
+          4
+        ],
+        "0,conv6": [
+          4
+        ],
+        "0,conv7": [
+          4
+        ],
+        "0,conv8": [
+          4
+        ],
+        "0,conv9": [
+          4
+        ],
+        "0,conv10": [
+          4
+        ],
+        "0,conv11": [
+          4
+        ],
+        "0,conv12": [
+          4
+        ],
+        "0,conv13": [
+          4
+        ],
+        "0,conv14": [
+          4
+        ],
+        "0,pool0": [
+          4
+        ],
+        "0,pool1": [
+          4
+        ],
+        "0,pool2": [
+          4
+        ],
+        "0,pool3": [
+          2
+        ],
+        "0,pool4": [
+          2
+        ],
+        "0,pool5": [
+          0
+        ],
+        "1,conv0": [
+          1
+        ],
+        "1,conv1": [
+          1
+        ],
+        "1,conv2": [
+          1
+        ],
+        "1,conv3": [
+          1
+        ],
+        "1,conv4": [
+          1
+        ],
+        "1,conv5": [
+          1
+        ],
+        "1,conv6": [
+          1
+        ],
+        "1,conv7": [
+          1
+        ],
+        "1,conv8": [
+          1
+        ],
+        "1,conv9": [
+          1
+        ],
+        "1,conv10": [
+          1
+        ],
+        "1,conv11": [
+          1
+        ],
+        "1,conv12": [
+          1
+        ],
+        "1,conv13": [
+          1
+        ],
+        "1,conv14": [
+          1
+        ],
+        "1,pool0": [
+          2
+        ],
+        "1,pool1": [
+          2
+        ],
+        "1,pool2": [
+          2
+        ],
+        "1,pool3": [
+          1
+        ],
+        "1,pool4": [
+          1
+        ],
+        "1,pool5": [
+          0
+        ]
+      },
+      "circuits_per_sample": {
+        "parameter_shift_current": 205,
+        "parameter_shift_live_occurrences_only": 199,
+        "sequential_current": 246,
+        "sequential_effective_degree": 238
+      },
+      "fast_vs_qibo_max_abs_difference": 6.661338147750939e-16
+    }
+  ]
+}

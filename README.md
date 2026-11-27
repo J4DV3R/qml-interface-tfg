@@ -13,7 +13,7 @@ otros algoritmos QML en incrementos posteriores.
 ## Entorno objetivo
 
 La configuración prioritaria de dependencias sigue la rama
-`python3.9-variation`, cuyo entorno objetivo es CPython 3.10.13. Se conservan
+`python3.10-variation`, cuyo entorno objetivo es CPython 3.10.13. Se conservan
 sus versiones fijadas y se añade PySide6 6.12.0 para la interfaz Workbench.
 En Windows, se puede crear un entorno separado e instalar esos requisitos así:
 
@@ -79,7 +79,12 @@ constituyen una evaluación de convergencia o rendimiento del método.
   en `bc877bd` limpio. Tras las correcciones de la auditoría, la suite pasa con
   124 pruebas en un árbol de trabajo basado en `bc877bd` (sección 30 del log).
   El 20 de noviembre de 2026, con la línea variacional, la fase C y la
-  preparación BSC, la suite completa pasa con 138 pruebas (sección 36 del log).
+  preparación BSC, la suite completa pasó con 138 pruebas (sección 36 del log);
+  el 26 de noviembre, con QML Workbench y las arquitecturas QCNN alternativas,
+  pasó con 176 pruebas (sección 40); y el 27 de noviembre, tras corregir el
+  adaptador Qililab y la transpilación sobre índices físicos reales, la suite
+  completa pasa con **180 pruebas OK** (Qt `offscreen`, Python 3.14.3, sección
+  41 del log; validación en CPython 3.10.13 pendiente).
 - **Flujo y frontera clásica-cuántica:** sin executor, el primer gradiente se
   obtiene mediante parameter-shift exacto y sin ruido; los gradientes siguientes
   usan shots si se configuraron. En M5, cada actualización se ejecuta como
@@ -109,9 +114,11 @@ constituyen una evaluación de convergencia o rendimiento del método.
   de instrucciones y profundidad son lógicas y no transpilladas. El ruido local
   es un canal depolarizante de una qubit por qubit tocado tras cada puerta
   lógica: sirve solo para análisis de sensibilidad, no es un modelo calibrado
-  de hardware. En Qibo 0.1.11 el canal se muestrea una vez por ejecución del
-  circuito, no por shot; los shots comparten la misma trayectoria de Pauli y no
-  promedian realizaciones de ruido. La preparación de entradas, schedule, codificación/saturación de
+  de hardware. En el modo `legacy_shared_trajectory` (usado por los perfiles M5
+  y screens previos al 12 de noviembre), Qibo 0.1.11 muestrea el canal una vez
+  por ejecución del circuito y no por shot, por lo que los shots comparten la
+  misma trayectoria de Pauli; desde el 12 de noviembre el modo por defecto es
+  matriz de densidad exacta (`density_matrix`, sección 30). La preparación de entradas, schedule, codificación/saturación de
   gradiente, decodificación y control siguen incluyendo procesamiento clásico.
   El objetivo indicado por el tutor es preparar la ejecución en hardware real y
   realizar el ajuste de pesos mediante circuitos, evitando la actualización
@@ -234,6 +241,14 @@ pooling repite esa misma CNOT, de modo que se anulan. Afecta a todas las rutas
 (híbrida, QGD y variacional). Corregirlo cambia el modelo; la decisión está
 pendiente de la tutoría.
 
+**Arquitecturas alternativas (implementadas y validadas, no evaluadas):**
+`src/qcnn_architectures.py` añade, junto a la `v1` original e intacta,
+`v1-param-pool` (pooling parametrizado con una sola CNOT; usa las 4
+características y sus 12 pesos) y `qibo` (ansatz de `qibo.models.QuantumCNN`,
+42 pesos). Se seleccionan en el nodo QML del Workbench o con
+`AnsatzEvaluator` en `src/variational_training.py`; el diagnóstico acepta
+`--architecture` (sección 40 del log).
+
 ## Preparación para hardware: plan BSC (fase 1, sin acceso)
 
 Plan para ejecutar la línea variacional en MareNostrum5-Ona (BSC: chips de 20
@@ -241,19 +256,29 @@ y 35 qubits, Qibo + Qililab). Estado: **implementado y validado en
 simulación; ninguna ejecución en hardware**. Detalle en
 [`docs/bsc/README.md`](docs/bsc/README.md) y en la sección 35 del log.
 
-- [`src/transpilation.py`](src/transpilation.py): layout, SWAPs y
-  descomposición a puertas nativas supuestas `{RX, RY, RZ, CZ}`.
-- [`src/hardware_execution.py`](src/hardware_execution.py): ejecución por
-  lotes, mock ruidoso de hardware, calibración y mitigación de lectura, y
-  `QililabExecutor` como esqueleto no funcional.
+- [`src/transpilation.py`](src/transpilation.py): layout, SWAPs, descomposición
+  a puertas nativas supuestas `{RX, RY, RZ, CZ}` y opción `compact=False` para
+  emitir circuitos sobre los índices físicos reales del chip.
+- [`src/hardware_execution.py`](src/hardware_execution.py) y
+  [`src/qililab_adapter.py`](src/qililab_adapter.py): ejecución por lotes, mock
+  ruidoso de hardware, calibración y mitigación de lectura, y `QililabExecutor`
+  conectado por defecto al adaptador público `qililab.execute(circuit, runcard, nshots=...)`
+  (solo validado con mocks en memoria; **sin validar todavía en QPU real**).
 - [`src/hardware_cost.py`](src/hardware_cost.py) y
   [`experiments/estimate_hardware_cost.py`](experiments/estimate_hardware_cost.py):
   datos técnicos para la solicitud RES, en
   [`docs/bsc/cost-estimates.md`](docs/bsc/cost-estimates.md).
+- [`experiments/run_qililab_smoke.py`](experiments/run_qililab_smoke.py) y
+  [`docs/bsc/pilot-execution.md`](docs/bsc/pilot-execution.md): prueba mínima de
+  1–2 qubits y guía operativa del piloto en MareNostrum5-Ona.
 - [`experiments/run_hardware_inference.py`](experiments/run_hardware_inference.py):
-  inferencia de checkpoints entrenados, en seco con el mock.
+  inferencia de checkpoints entrenados, en seco con el mock o dirigida a Qililab.
 - [`slurm/`](slurm/): job arrays para MN5-GPP y plantilla para Ona, con
-  marcadores pendientes.
+  parámetros pendientes de confirmar con el BSC.
+
+Las arquitecturas `v1-param-pool` y `qibo` de `src/qcnn_architectures.py` aún
+no están integradas en el transpilador ni en el estimador de coste hardware, que
+siguen asumiendo `v1`.
 
 ## Prototipo QCNN actual
 

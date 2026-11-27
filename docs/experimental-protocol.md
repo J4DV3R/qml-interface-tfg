@@ -552,13 +552,7 @@ mientras que el update QGD continúa usando un shot determinista. Son
 configuraciones de sensibilidad en simulación local, no ejecución ni calibración
 de hardware.
 
-**Limitación del muestreo de ruido (Qibo 0.1.11):** el canal depolarizante se
-muestrea una vez por ejecución del circuito, no por shot.
-`NumpyBackend.apply_channel` sortea cada operador de Pauli una vez por llamada y
-`execute(nshots=...)` llama al canal una vez; los shots comparten la misma
-trayectoria. Por tanto, los shots no promedian realizaciones de ruido y una
-`mode_probability=1.0` no demuestra ausencia de ruido. Esto afecta a `p_model` y
-`p_update` y se detalla en la sección 29 del log técnico.
+**Limitación del muestreo de ruido en el modo legado (Qibo 0.1.11):** en el modo `legacy_shared_trajectory` (usado por los perfiles M5 y screens S0/G0/U0 anteriores al 12 de noviembre), el canal depolarizante se muestrea una vez por ejecución del circuito, no por shot. `NumpyBackend.apply_channel` sortea cada operador de Pauli una vez por llamada y `execute(nshots=...)` llama al canal una vez; los shots comparten la misma trayectoria. Por tanto, en esos artefactos históricos los shots no promedian realizaciones de ruido y una `mode_probability=1.0` no demuestra ausencia de ruido (sección 29 del log). Desde el 12 de noviembre de 2026 (sección 30), el modo por defecto es `density_matrix` exacto con `PauliNoiseChannel` y shots independientes (y existe además `per_shot_trajectories`).
 
 ### Runner comparativo implementado y validado
 
@@ -787,4 +781,5 @@ Las figuras y tablas de `docs/reports/` se derivan de estos JSON con `experiment
 - **Límites conocidos de la preparación:**
   - Las topologías y puertas nativas son supuestas.
   - El simulador que imita el chip usa ruido supuesto.
-  - El adaptador de Qililab es un esqueleto.
+  - El adaptador `src/qililab_adapter.py` implementa la llamada pública `qililab.execute(circuit, runcard, nshots=...)` (junto con la prueba mínima `experiments/run_qililab_smoke.py`), pero **no está validado todavía contra la instalación real de Qililab ni en hardware Ona**.
+  - Las arquitecturas alternativas (`v1-param-pool`, `qibo`) implementadas el 26 de noviembre (sección 40) aún no están integradas en el transpilador ni en el estimador de coste hardware.

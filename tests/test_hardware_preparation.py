@@ -278,6 +278,154 @@ class MockAndMitigationTests(unittest.TestCase):
         with self.assertRaises(Exception):
             parse_physical_qubits("4,4")
 
+    def test_builtin_qililab_adapter_drops_zero_counts_and_casts_numpy_ints(self):
+        import types
+
+        fake = types.ModuleType("qililab")
+
+        class Result:
+            def counts(self):
+                return {"0": np.int64(10), "1": np.int64(0)}
+
+        fake.execute = lambda circuit, runcard, nshots: Result()
+        previous = sys.modules.get("qililab")
+        sys.modules["qililab"] = fake
+        try:
+            executor = QililabExecutor("runcard.yml", (0, 1, 2, 3), adapter_module="src.qililab_adapter")
+            counts = executor.execute_batch([self.result.circuit], shots=10)
+            self.assertEqual(counts, [{"0": 10}])
+            self.assertIs(type(counts[0]["0"]), int)
+            self.assertEqual(json.dumps(counts), '[{"0": 10}]')
+        finally:
+            if previous is None:
+                sys.modules.pop("qililab", None)
+            else:
+                sys.modules["qililab"] = previous
+
+    def test_qililab_adapter_rejects_circuit_outside_physical_qubits(self):
+        import types
+
+        fake = types.ModuleType("qililab")
+        fake.execute = lambda circuit, runcard, nshots: {"0": nshots}
+        previous = sys.modules.get("qililab")
+        sys.modules["qililab"] = fake
+        try:
+            from src.qililab_adapter import execute_batch as adapter_execute_batch
+
+            circuit = Circuit(3)
+            circuit.add(gates.X(2))
+            circuit.add(gates.M(2))
+            with self.assertRaisesRegex(ValueError, "outside physical_qubits"):
+                adapter_execute_batch([circuit], 10, None, "runcard.yml", (4, 5))
+        finally:
+            if previous is None:
+                sys.modules.pop("qililab", None)
+            else:
+                sys.modules["qililab"] = previous
+
+    def test_smoke_runner_executes_with_nonzero_physical_qubits(self):
+        import types
+        from experiments.run_qililab_smoke import main as smoke_main
+
+        seen: list[tuple[int, set[int], str, int]] = []
+        fake = types.ModuleType("qililab")
+
+        def fake_execute(circuit, runcard, nshots):
+            used = {int(q) for g in circuit.queue for q in getattr(g, "qubits", ())}
+            seen.append((circuit.nqubits, used, runcard, nshots))
+            n_meas = sum(len(getattr(g, "target_qubits", ())) for g in circuit.queue if g.__class__.__name__ == "M")
+            return {"0" * n_meas: np.int64(nshots), "1" * n_meas: np.int64(0)}
+
+        fake.execute = fake_execute
+        previous = sys.modules.get("qililab")
+        sys.modules["qililab"] = fake
+        try:
+            with tempfile.TemporaryDirectory(dir=str(ROOT)) as tmp:
+                out_x = Path(tmp) / "smoke_x.json"
+                rec_x = smoke_main([
+                    "--runcard", "runcard.yml",
+                    "--operation", "x",
+                    "--physical-qubits", "4",
+                    "--shots", "25",
+                    "--output", str(out_x),
+                ])
+                self.assertEqual(rec_x["physical_qubits"], [4])
+                self.assertEqual(rec_x["counts"], [{"0": 25}])
+                self.assertTrue(out_x.exists())
+
+                out_bell = Path(tmp) / "smoke_bell.json"
+                rec_bell = smoke_main([
+                    "--runcard", "runcard.yml",
+                    "--operation", "bell",
+                    "--physical-qubits", "4,5",
+                    "--shots", "30",
+                    "--output", str(out_bell),
+                ])
+                self.assertEqual(rec_bell["physical_qubits"], [4, 5])
+                self.assertEqual(rec_bell["counts"], [{"00": 30}])
+                self.assertTrue(out_bell.exists())
+            self.assertEqual(seen[0], (5, {4}, "runcard.yml", 25))
+            self.assertEqual(seen[1], (6, {4, 5}, "runcard.yml", 30))
+        finally:
+            if previous is None:
+                sys.modules.pop("qililab", None)
+            else:
+                sys.modules["qililab"] = previous
+
+    def test_transpile_non_compact_and_qililab_inference_use_physical_indices(self):
+        import types
+        from experiments.run_hardware_inference import main as inference_main
+
+        edges = [(2, 3), (3, 4), (4, 5)]
+        non_compact = transpile(self.logical, edges, compact=False)
+        self.assertEqual(non_compact.physical_qubits, (2, 3, 4, 5))
+        self.assertEqual(non_compact.circuit.nqubits, 6)
+        used = {int(q) for g in non_compact.circuit.queue for q in getattr(g, "qubits", ())}
+        self.assertTrue(used.issubset({2, 3, 4, 5}))
+        np.testing.assert_allclose(
+            measured_marginal(non_compact.circuit, [non_compact.measured_physical[0]]),
+            measured_marginal(self.logical, [0]),
+            atol=1e-10,
+        )
+
+        seen_used: list[set[int]] = []
+        fake = types.ModuleType("qililab")
+
+        def fake_execute(circuit, runcard, nshots):
+            used_q = {int(q) for g in circuit.queue for q in getattr(g, "qubits", ())}
+            seen_used.append(used_q)
+            if len(circuit.queue) == 2 and circuit.queue[0].__class__.__name__ == "RX":
+                return {"1": np.int64(nshots), "0": np.int64(0)}
+            return {"0": np.int64(nshots), "1": np.int64(0)}
+
+        fake.execute = fake_execute
+        previous = sys.modules.get("qililab")
+        sys.modules["qililab"] = fake
+        run = ROOT / "results/variational/B-confirm-iris/I1-exact/sequential-angle/run-angle-sequential-init19.json"
+        try:
+            with tempfile.TemporaryDirectory(dir=str(ROOT)) as tmp:
+                output = Path(tmp) / "qililab_inf.json"
+                result = inference_main([
+                    str(run),
+                    "--executor", "qililab",
+                    "--runcard", "runcard.yml",
+                    "--edges", "2-3,3-4,4-5",
+                    "--splits", "validation",
+                    "--max-samples", "2",
+                    "--shots", "20",
+                    "--output", str(output),
+                ])
+                self.assertTrue(output.exists())
+                self.assertEqual(result["layout"]["physical_qubits"], [2, 3, 4, 5])
+                self.assertEqual(len(seen_used), 2 + 2 + 2)  # start cal + 2 samples + end cal
+                self.assertTrue(all(u.issubset({2, 3, 4, 5}) for u in seen_used))
+                self.assertIn({non_compact.measured_physical[0]}, seen_used)
+        finally:
+            if previous is None:
+                sys.modules.pop("qililab", None)
+            else:
+                sys.modules["qililab"] = previous
+
 
 class DryRunTests(unittest.TestCase):
     def test_inference_dry_run_reproduces_stored_exact_metrics(self):

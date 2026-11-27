@@ -5,7 +5,7 @@
 | Script | Máquina | Uso |
 |---|---|---|
 | `mn5_gpp_array.sbatch` | MareNostrum 5 GPP (CPU) | Simulaciones de la línea variacional como *job array*; sustituye a la ejecución local con `xargs -P` de la fase C |
-| `ona_inference.sbatch` | MareNostrum5-Ona (chip cuántico) | Inferencia de checkpoints entrenados (fase 3). **No funcional** hasta implementar `QililabExecutor` |
+| `ona_inference.sbatch` | MareNostrum5-Ona (chip cuántico) | Inferencia de checkpoints entrenados (fase 3). Usa `src.qililab_adapter` por defecto; **no validado todavía en hardware real** hasta confirmar módulos, runcard, topología y cuenta Slurm en el BSC |
 
 ## Por qué dos máquinas
 
@@ -14,7 +14,7 @@ La guía de acceso de la RES para recursos cuánticos indica que en la partició
 ## Generar la lista de trabajos
 
 ```bash
-qml_env/Scripts/python.exe -B -m experiments.make_variational_jobs --datasets breast-cancer iris --dataset-seeds 1 2 3 4 5 6 7 8 9 10 --output-root results/variational/C-partitions --jobs-file slurm/jobs/phaseC.txt
+.venv-py310/Scripts/python.exe -B -m experiments.make_variational_jobs --datasets breast-cancer iris --dataset-seeds 1 2 3 4 5 6 7 8 9 10 --output-root results/variational/C-partitions --jobs-file slurm/jobs/phaseC.txt
 ```
 
 Después se envía con `sbatch --array=1-160%40 --export=ALL,JOBS_FILE=slurm/jobs/phaseC.txt slurm/mn5_gpp_array.sbatch`.

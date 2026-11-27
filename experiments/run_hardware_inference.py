@@ -13,7 +13,8 @@ Executors:
 * ``mock``: :class:`src.hardware_execution.HardwareMockExecutor`, a simulator
   with local depolarizing noise and readout error (dry runs; parameters are
   assumptions, not a calibration);
-* ``qililab``: placeholder for the BSC chips (not functional yet).
+* ``qililab``: :class:`src.hardware_execution.QililabExecutor` (defaults to
+  :mod:`src.qililab_adapter`; not validated on real QPU hardware yet).
 
 Example (dry run on a hypothetical 5-qubit line):
     qml_env/Scripts/python.exe -B -m experiments.run_hardware_inference \
@@ -173,13 +174,15 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     started = time.time()
 
     # Layout is fixed once from the circuit structure (identical for every sample).
+    compact_circuits = args.executor == "mock"
     probe = build_qcnn_circuit(np.full(4, 0.5), np.zeros((2, 4)), QCNNConfig(4, encoding=runs[0]["encoding"]))
     layout = choose_layout(probe, edges)
-    probe_t = transpile(probe, edges, layout=layout)
+    probe_t = transpile(probe, edges, layout=layout, compact=compact_circuits)
 
     if args.executor == "mock":
         noise = MockNoise(args.noise_1q, args.noise_2q, args.readout_p01, args.readout_p10)
         executor = HardwareMockExecutor(probe_t.coupling_edges, probe_t.circuit.nqubits, noise)
+        measured_bit = probe_t.physical_qubits.index(probe_t.measured_physical[0])
     else:
         executor = QililabExecutor(
             args.runcard,
@@ -191,7 +194,7 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
             basis_gates=basis_gates,
             connectivity=edges,
         )
-    measured_bit = probe_t.physical_qubits.index(probe_t.measured_physical[0])
+        measured_bit = probe_t.measured_physical[0]
 
     def calibrate(seed_seq):
         return calibrate_readout(executor, probe_t.circuit.nqubits, [measured_bit], shots=calibration_shots,
@@ -213,8 +216,10 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
             if args.max_samples is not None:
                 features, targets = features[: args.max_samples], targets[: args.max_samples]
             exact = fast.expectations(run["weights"], features)[:, 0]
-            transpiled = [transpile(build_qcnn_circuit(x, run["weights"], config), edges, layout=layout)
-                          for x in features]
+            transpiled = [
+                transpile(build_qcnn_circuit(x, run["weights"], config), edges, layout=layout, compact=compact_circuits)
+                for x in features
+            ]
             if any(t.measured_physical != probe_t.measured_physical or t.physical_qubits != probe_t.physical_qubits
                    for t in transpiled):
                 raise RuntimeError("transpiled circuits do not share the probe layout")

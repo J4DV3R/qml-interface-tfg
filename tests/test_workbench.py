@@ -66,6 +66,18 @@ class ParameterAndGraphTests(unittest.TestCase):
         states = Engine().run(workflow)
         self.assertTrue(all(state == DONE for state in states.values()), states)
 
+    def test_every_qcnn_architecture_runs_and_reports_its_structure(self):
+        expected = {"v1": 8, "v1-param-pool": 12, "qibo": 42}
+        for architecture, n_weights in expected.items():
+            workflow = small_flow(steps=1, optimizer="spsa")
+            workflow.set_params("q", {"architecture": architecture})
+            engine = Engine()
+            states = engine.run(workflow)
+            self.assertTrue(all(state == DONE for state in states.values()), (architecture, states))
+            result = engine.outputs(workflow, "q")["result"]
+            self.assertEqual(result.model_state["architecture"]["trainable_weights"], n_weights)
+            self.assertEqual(np.asarray(result.model_state["best_weights"]).size, n_weights)
+
     def test_save_and_load_round_trip(self):
         workflow = small_flow()
         with tempfile.TemporaryDirectory() as tmp:

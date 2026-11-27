@@ -1,8 +1,10 @@
 """Variational QCNN (4 qubits) trained with GD, Adam, SPSA or the sequential optimizer.
 
-Wraps ``src.variational_training`` and ``src.fast_qcnn`` with the same seeds and
-random streams as ``experiments/run_variational_benchmark.py``, so an exact run
-configured like phase C reproduces its checkpoint and test metrics.
+Wraps ``src.variational_training`` with the same seeds and random streams as
+``experiments/run_variational_benchmark.py``: with the ``v1`` architecture an
+exact run configured like phase C reproduces its checkpoint and test metrics.
+The ``v1-param-pool`` and ``qibo`` architectures come from
+``src.qcnn_architectures`` (corrected pooling and Qibo's ``QuantumCNN`` ansatz).
 """
 
 from __future__ import annotations
@@ -13,7 +15,13 @@ import numpy as np
 
 from src.fast_qcnn import FastQCNNConfig
 from src.qcnn_engine import initialize_weights
-from src.variational_training import FastEvaluator, VariationalTrainingConfig, train_variational_qcnn
+from src.qcnn_architectures import build_ansatz, initialize_ansatz_weights
+from src.variational_training import (
+    AnsatzEvaluator,
+    FastEvaluator,
+    VariationalTrainingConfig,
+    train_variational_qcnn,
+)
 
 from ..data import Splits
 from ..node import Cancelled, RunContext
@@ -21,20 +29,37 @@ from ..parameters import ChoiceParam, FloatParam, IntParam, Param
 from . import FitOutcome, QMLAlgorithm, register_algorithm
 
 GRADIENT = ("gd", "adam")
+ARCHITECTURE_CHOICES = [
+    ("v1", "v1 original (8 pesos; ignora x3)"),
+    ("v1-param-pool", "v1 con pooling parametrizado (12 pesos)"),
+    ("qibo", "Ansatz QuantumCNN de Qibo (42 pesos)"),
+]
+ARCHITECTURE_NOTES = {
+    "v1": "La salida del circuito v1 no depende de la característica x3 ni de 3 de los 8 pesos "
+          "(log técnico, sección 37).",
+    "v1-param-pool": "Pooling parametrizado RY(a)·RY(b)·CNOT·RY(−a): las 4 características y los 12 pesos "
+                     "influyen en la salida (diagnóstico del cono de luz).",
+    "qibo": "Ansatz de qibo.models.QuantumCNN sin sesgo entrenable y con nuestra codificación; 2 de los 42 "
+            "pesos (RZ del qubit fuente antes de la CNOT de pooling) no influyen en la salida.",
+}
 
 
 @register_algorithm
 class VariationalQCNN(QMLAlgorithm):
     algorithm_id = "qcnn-variational"
     label = "QCNN variacional (4 qubits)"
-    description = ("Red convolucional cuántica de 4 qubits; el circuito evalúa ⟨Z⟩ y un optimizador clásico "
-                   "actualiza los 8 pesos. Checkpoint elegido solo con validation.")
+    description = ("Red convolucional cuántica de 4 qubits con arquitectura seleccionable (v1, pooling "
+                   "parametrizado o ansatz de Qibo); el circuito evalúa ⟨Z⟩ y un optimizador clásico actualiza "
+                   "los pesos. Checkpoint elegido solo con validation.")
     n_features = 4
 
     def parameter_schema(self, values: Mapping[str, Any]) -> list[Param]:
         optimizer = values.get("optimizer", "adam")
         default_lr = 0.5 if optimizer == "gd" else 0.1
         return [
+            ChoiceParam("architecture", "Arquitectura", "v1",
+                        "Circuito de la QCNN. v1 se conserva para reproducir las fases A-C.",
+                        choices=ARCHITECTURE_CHOICES, group="Modelo"),
             ChoiceParam("encoding", "Codificación", "angle",
                         "Cómo se cargan las 4 características en los qubits.",
                         choices=[("angle", "Angular  RY(πx)"), ("phase", "Fase  H + RZ(2πx)")], group="Modelo"),
@@ -92,11 +117,19 @@ class VariationalQCNN(QMLAlgorithm):
             spsa_stability=params.get("spsa_stability"),
             sequential_grid_points=params.get("sequential_grid_points", 2048),
         )
-        evaluator = FastEvaluator(FastQCNNConfig(4, 1, params["encoding"],
-                                                 depolarizing_probability=noise, readout_error=readout))
+        architecture = params.get("architecture", "v1")
+        if architecture == "v1":
+            # Same evaluator as the phase A-C benchmark (bit-for-bit reproducible).
+            evaluator = FastEvaluator(FastQCNNConfig(4, 1, params["encoding"],
+                                                     depolarizing_probability=noise, readout_error=readout))
+            initial = initialize_weights(4, seed=params["init_seed"], low=-params["init_scale"],
+                                         high=params["init_scale"])
+        else:
+            evaluator = AnsatzEvaluator(architecture, 4, params["encoding"],
+                                        depolarizing_probability=noise, readout_error=readout)
+            initial = initialize_ansatz_weights(evaluator.ansatz, params["init_seed"],
+                                                low=-params["init_scale"], high=params["init_scale"])
         rng = np.random.default_rng(np.random.SeedSequence([params["execution_seed"], params["init_seed"]]))
-        initial = initialize_weights(4, seed=params["init_seed"], low=-params["init_scale"],
-                                     high=params["init_scale"])
 
         def callback(record: dict[str, Any]) -> bool:
             context.progress(record["step"] / config.max_steps,
@@ -121,14 +154,14 @@ class VariationalQCNN(QMLAlgorithm):
             "validation_accuracy": r["validation_metrics"]["accuracy"],
             "optimization_circuits": r["optimization_circuits"],
         } for r in result.history]
-        notes = ["La salida del circuito actual no depende de la característica x3 ni de 3 de los 8 pesos "
-                 "(log técnico, sección 37)."]
+        notes = [ARCHITECTURE_NOTES[architecture]]
         return FitOutcome(
             predict=predict,
             history=history,
             checkpoint={"step": result.best_step, "validation_loss": result.best_validation_loss,
                         "steps_completed": result.steps_completed, "stop_reason": result.stop_reason},
-            model_state={"best_weights": best.tolist(), "initial_weights": result.initial_weights.tolist(),
+            model_state={"architecture": build_ansatz(architecture, 4).summary(),
+                         "best_weights": best.tolist(), "initial_weights": result.initial_weights.tolist(),
                          "training_config": {k: v for k, v in vars(config).items()}},
             cost={"optimization_circuits": result.optimization_circuits,
                   "evaluation_circuits": result.evaluation_circuits,

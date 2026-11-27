@@ -20,8 +20,11 @@ Registra y verifica el resultado: $ARGUMENTS
 
 1. Ejecuta `git status --short --branch` y localiza el JSON y su log.
 2. Comprueba que el JSON es válido y que contiene la configuración esperada.
-3. Identifica el esquema: `sweep/runs/summaries/baseline` o
-   `dataset/model/training/results/baseline`.
+3. Identifica el esquema real del JSON: legado (`sweep/runs/summaries/baseline`
+   o `dataset/model/training/results/baseline`), QGD M1-M5
+   (`provenance/qgd/training/test`), variacional
+   (`condition/seeds/provenance/baselines/training/test`) o hardware/diagnóstico
+   (`kind/status/provenance/layout/cost/runs`).
 4. Verifica dataset, particiones, semillas, codificación, optimizador,
    presupuesto, shots, ruido y tiempo.
 5. Calcula agregados solo desde los resultados individuales.

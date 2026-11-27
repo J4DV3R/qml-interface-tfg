@@ -33,31 +33,36 @@ especialista adecuado.
 
 ## Contexto vigente del desarrollo
 
-- Consulta `.opencode/skills/qml-project-context/SKILL.md` para el estado
-  actualizado. No infieras el estado a partir de versiones antiguas del plan.
-- A 10 de noviembre de 2026, M1-M5 existen; la suite completa pasó 92 pruebas en
-  la revisión de trabajo basada en `164eaee2b05ed53f9950afe8a272ca91f5e292df`
-  (árbol sucio); 73 y 88 son conteos históricos. Se generaron cinco perfiles
-  exploratorios JSON de dos pasos y screens S0/G0/U0 parciales; no son
-  evaluación de convergencia/rendimiento ni ejecución QPU. Con `b=5/lr=0.1` el
-  delta entero de QGD es cero y los pesos solo se cuantizan; U0 tiene tres
-  fallos. El ruido de Qibo se muestrea una vez por ejecución, no por shot.
-  Consulta las secciones 28-29 de `docs/TFG-technical-log.md`.
-- **Cambio aprobado:** `requirements.txt` está modificado en el árbol actual
-  (122→51 líneas, UTF-16LE→UTF-8) y el responsable aprobó incluirlo en el commit
-  de cierre del 10 de noviembre de 2026. No lo modifiques de nuevo sin nueva
-  aprobación.
-- M5 incluye un contrato de executor medido y una actualización aritmética
-  reversible leída por counts; el adaptador actual sigue siendo el simulador
-  Qibo. Sin executor, el update usa simulación exacta; con `--measured-execution`
-  o ruido solicitado, se usa ejecución medida finita. El postprocesamiento y
-  control siguen siendo clásicos. El objetivo señalado por el tutor es preparar
-  ejecución en hardware real y evitar el ajuste clásico de pesos. No reduzcas
-  ese objetivo a una mera etiqueta metodológica: no hay proveedor, transpilación
-  ni validación de recursos de dispositivo. La variante modular concreta,
-  distinta del clipping propuesto, y el reparto de medición/postprocesamiento
-  todavía requieren definición.
-- Para esta instalación usa `qml_env\Scripts\python.exe`; el Python global no
+- Consulta `AGENTS.md` y `.opencode/skills/qml-project-context/SKILL.md` para el
+  estado actualizado. No infieras el estado a partir de versiones antiguas del
+  plan (`docs/quantum-training-plan.md`) ni del paquete histórico externo
+  `qml-interface-tfg-claude-handoff/` (congelado al 12-nov, `bc877bd`).
+- A 27 de noviembre de 2026 (secciones 30-41 de `docs/TFG-technical-log.md`):
+  - La suite completa pasa con **180 pruebas OK** (`QT_QPA_PLATFORM=offscreen`,
+    Python 3.14.3, sobre `b5abe03` + cambios locales). La validación en el
+    entorno objetivo CPython 3.10.13 (`.venv-py310`) sigue pendiente.
+  - **Línea variacional** (`src/fast_qcnn.py`, `src/variational_training.py`):
+    evaluada en simulación (fases A, B y C en `results/variational/`).
+  - **Cono de luz y arquitecturas alternativas** (`src/qcnn_architectures.py`):
+    `v1` solo usa 3 características y 5 pesos efectivos; `v1-param-pool` (12
+    pesos) y `qibo` (42 pesos) están implementadas y validadas unitariamente,
+    pendientes de decisión de tutoría para evaluación en fase C.
+  - **QML Workbench** (`src/workbench/`): aplicación de escritorio PySide6 con
+    patrón MVC implementada y validada (18 pruebas); solo `view/` importa Qt.
+  - **Plan BSC / Qililab** (`src/hardware_cost.py`, `src/transpilation.py`,
+    `src/hardware_execution.py`, `src/qililab_adapter.py`,
+    `experiments/run_qililab_smoke.py`, `slurm/`): implementado y validado en
+    simulación y con mocks en memoria; **sin acceso ni validación en QPU real**.
+  - **Ruta QGD M1-M5:** implementada y validada unitariamente; solo tiene
+    perfiles exploratorios y screens parciales S0/G0/U0 con `b=5/lr=0.1` no-op
+    y ruido legado; la desviación modular reversible sigue pendiente de tutoría.
+  - **Ruido corregido:** desde el 12-nov el modo por defecto es matriz de
+    densidad local exacta (`density_matrix`) con shots independientes.
+- **Dependencias:** `requirements.txt` conserva los pins de
+  `origin/python3.10-variation` (objetivo CPython 3.10.13) y añade
+  `PySide6==6.12.0` (aprobado el 25-nov). No lo modifiques sin aprobación.
+- Para esta instalación usa `qml_env\Scripts\python.exe` (o
+  `.venv-py310\Scripts\python.exe` cuando esté creado); el Python global no
   tiene Qibo. No orquestes agentes para lecturas sencillas ni sobrecargues la
   tarea cuando el usuario pide explícitamente bajo consumo.
 - Si el modelo gratuito de `qml-developer` no está disponible o alcanza su

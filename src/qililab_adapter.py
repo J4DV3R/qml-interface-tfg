@@ -35,15 +35,28 @@ def _normalize_counts(raw: Any, shots: int) -> dict[str, int]:
             raise ValueError(f"invalid Qililab bitstring: {key!r}")
         if isinstance(value, bool) or not isinstance(value, Integral):
             raise TypeError(f"count for {key!r} must be an integer")
-        if value < 0:
+        count = int(value)
+        if count < 0:
             raise ValueError(f"count for {key!r} must be non-negative")
-        normalized[text] = normalized.get(text, 0) + value
+        if count == 0:
+            continue
+        normalized[text] = normalized.get(text, 0) + count
 
     if sum(normalized.values()) != shots:
         raise ValueError(
             f"Qililab counts sum to {sum(normalized.values())}, expected {shots}"
         )
     return normalized
+
+
+def _circuit_used_qubits(circuit: Any) -> set[int]:
+    used: set[int] = set()
+    for gate in getattr(circuit, "queue", ()) or ():
+        for qubit in getattr(gate, "qubits", ()) or ():
+            used.add(int(qubit))
+        for qubit in getattr(gate, "target_qubits", ()) or ():
+            used.add(int(qubit))
+    return used
 
 
 def execute_batch(
@@ -57,8 +70,7 @@ def execute_batch(
 
     Qililab does not expose a batch contract confirmed for BSC Ona, so this
     adapter uses the documented single-circuit API for each circuit.
-    ``physical_qubits`` is validated here and preserved by the caller; routing
-    and placement remain under Qililab/runcard control.
+    Each circuit must act only on qubits declared in ``physical_qubits``.
     """
     if not isinstance(shots, int) or isinstance(shots, bool) or shots < 1:
         raise ValueError("shots must be a positive integer")
@@ -69,9 +81,19 @@ def execute_batch(
     if not circuits:
         raise ValueError("circuits must be non-empty")
 
-    physical = tuple(int(qubit) for qubit in physical_qubits)
+    physical_list: list[int] = []
+    for qubit in physical_qubits:
+        if isinstance(qubit, bool) or not isinstance(qubit, Integral):
+            raise ValueError("physical_qubits must contain non-negative integers")
+        parsed = int(qubit)
+        if parsed < 0:
+            raise ValueError("physical_qubits must contain non-negative integers")
+        physical_list.append(parsed)
+    physical = tuple(physical_list)
     if not physical or len(set(physical)) != len(physical):
         raise ValueError("physical_qubits must be a non-empty sequence without duplicates")
+    physical_set = set(physical)
+    max_physical_index = max(physical)
 
     try:
         qililab = importlib.import_module("qililab")
@@ -89,14 +111,17 @@ def execute_batch(
     outputs: list[dict[str, int]] = []
     for circuit in circuits:
         n_qubits = getattr(circuit, "nqubits", None)
-        if not isinstance(n_qubits, int) or n_qubits > len(physical):
+        if isinstance(n_qubits, bool) or not isinstance(n_qubits, int) or n_qubits < 1:
+            raise ValueError("circuit must declare a positive integer nqubits")
+        used_qubits = _circuit_used_qubits(circuit)
+        if used_qubits:
+            outside = sorted(used_qubits - physical_set)
+            if outside:
+                raise ValueError(
+                    f"circuit uses qubits {outside} outside physical_qubits {physical}"
+                )
+        elif n_qubits > max_physical_index + 1:
             raise ValueError("circuit requires more qubits than physical_qubits provides")
         result = execute(circuit, runcard.strip(), nshots=shots)
-        if hasattr(result, "counts") and callable(result.counts):
-            counts = result.counts()
-        elif isinstance(result, dict):
-            counts = result
-        else:
-            counts = result
-        outputs.append(_normalize_counts(counts, shots))
+        outputs.append(_normalize_counts(result, shots))
     return outputs

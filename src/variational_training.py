@@ -16,7 +16,7 @@ validation-only checkpoint selection:
     evaluations per step, whatever the number of weights.
 ``sequential``
     Sequential exact coordinate minimization (Rotosolve / NFT family). Each
-    shared weight enters ``R`` RY/RZ gates, so every Z expectation is a
+    shared weight enters ``R`` rotation gates, so every Z expectation is a
     trigonometric polynomial of degree ``R`` in that weight (also under the
     depolarizing/readout noise used here, which does not depend on the
     weight). ``2R + 1`` equally spaced evaluations reconstruct it exactly for
@@ -42,10 +42,12 @@ import numpy as np
 if __package__:
     from .execution import ExecutionConfig
     from .fast_qcnn import FastQCNN, FastQCNNConfig, sample_expectations, weight_occurrences
+    from .qcnn_architectures import AnsatzQCNN, build_ansatz
     from .qcnn_engine import QCNNConfig, parameter_shift_gradient, predict
 else:  # pragma: no cover - direct execution from src/
     from execution import ExecutionConfig
     from fast_qcnn import FastQCNN, FastQCNNConfig, sample_expectations, weight_occurrences
+    from qcnn_architectures import AnsatzQCNN, build_ansatz
     from qcnn_engine import QCNNConfig, parameter_shift_gradient, predict
 
 
@@ -54,6 +56,10 @@ OPTIMIZERS = ("gd", "adam", "spsa", "sequential")
 
 # ---------------------------------------------------------------- evaluators
 class Evaluator(Protocol):
+    """Circuit evaluator. Optional attributes: ``weight_shape`` (default
+    ``(len(occurrences), 4)``) and ``weight_degrees`` (structural degree of
+    the output in each weight; default ``occurrences[layer]`` for every weight)."""
+
     n_qubits: int
     occurrences: list[int]
 
@@ -76,6 +82,8 @@ class FastEvaluator:
         self.model = FastQCNN(config)
         self.n_qubits = config.n_qubits
         self.occurrences = weight_occurrences(config.n_qubits, config.n_outputs)
+        self.weight_shape = (len(self.occurrences), 4)
+        self.weight_degrees = np.repeat(np.asarray(self.occurrences)[:, None], 4, axis=1)
 
     def predict(self, weights, features, *, shots, rng):
         exact = self.model.expectations(weights, features)[:, 0]
@@ -105,6 +113,56 @@ class FastEvaluator:
             gradient[layer, weight] += 0.5 * sign * float(upstream @ shifted[:, column])
         circuits = len(features) * (1 + n_shift)
         return gradient, circuits
+
+
+class AnsatzEvaluator:
+    """Vectorized evaluator of any architecture of ``qcnn_architectures``.
+
+    Weights have shape ``ansatz.weight_shape``; the parameter-shift gradient
+    sums ``coeff * (E(+pi/2) - E(-pi/2)) / 2`` over every gate occurrence of
+    each weight. For ``v1`` it gives the same values as :class:`FastEvaluator`.
+    """
+
+    backend = "fast-numpy-ansatz"
+
+    def __init__(self, architecture: str, n_qubits: int = 4, encoding: str = "angle",
+                 depolarizing_probability: float = 0.0, readout_error: float = 0.0):
+        self.ansatz = build_ansatz(architecture, n_qubits)
+        self.model = AnsatzQCNN(self.ansatz, encoding, depolarizing_probability, readout_error)
+        self.config = self.model.config
+        self.architecture = architecture
+        self.n_qubits = n_qubits
+        self.weight_shape = self.ansatz.weight_shape
+        self.weight_degrees = self.ansatz.weight_degrees
+        self.occurrences = [int(v) for v in self.weight_degrees.max(axis=1)]
+
+    def predict(self, weights, features, *, shots, rng):
+        exact = self.model.expectations(weights, features)[:, 0]
+        return sample_expectations(exact, shots, rng)
+
+    def predict_variants(self, weight_variants, features, *, shots, rng):
+        variants = np.asarray(weight_variants, dtype=float)
+        features = np.asarray(features, dtype=float)
+        n_variants, n_samples = len(variants), len(features)
+        angles = np.repeat(self.model.angles_from_weights(variants), n_samples, axis=0)
+        feats = np.tile(features, (n_variants, 1))
+        exact = self.model.expectations_from_angles(angles, feats)[:, 0]
+        return sample_expectations(exact, shots, rng).reshape(n_variants, n_samples)
+
+    def gradient(self, weights, features, targets, *, shots, rng):
+        features = np.asarray(features, dtype=float)
+        targets = np.asarray(targets, dtype=float).reshape(-1)
+        weights = np.asarray(weights, dtype=float)
+        prediction = self.predict(weights, features, shots=shots, rng=rng)
+        upstream = 2.0 * (prediction - targets) / len(targets)
+        angles, feats, index, n_shift = self.model.shift_rows(weights, features)
+        shifted = sample_expectations(
+            self.model.expectations_from_angles(angles, feats)[:, 0], shots, rng
+        ).reshape(len(features), n_shift)
+        gradient = np.zeros_like(weights)
+        for column, (layer, param, coeff, sign) in enumerate(index):
+            gradient[layer, param] += 0.5 * coeff * sign * float(upstream @ shifted[:, column])
+        return gradient, len(features) * (1 + n_shift)
 
 
 class QiboEvaluator:
@@ -275,14 +333,19 @@ def _sequential_sweep(weights, train_x, train_y, evaluator, config, rng):
     circuits = 0
     targets = np.asarray(train_y, dtype=float).reshape(-1)
     grid = 2.0 * np.pi * np.arange(config.sequential_grid_points) / config.sequential_grid_points
+    degrees = getattr(evaluator, "weight_degrees", None)
+    if degrees is None:
+        degrees = np.repeat(np.asarray(evaluator.occurrences)[:, None], weights.shape[1], axis=1)
     for layer in range(weights.shape[0]):
-        degree = evaluator.occurrences[layer]
-        points = 2 * degree + 1
-        offsets = 2.0 * np.pi * np.arange(points) / points
-        frequencies = np.arange(-degree, degree + 1)
-        basis_at_points = np.exp(-1j * np.outer(frequencies, offsets)) / points  # (K, M)
-        basis_on_grid = np.exp(1j * np.outer(grid, frequencies))  # (G, K)
-        for index in range(4):
+        for index in range(weights.shape[1]):
+            degree = int(degrees[layer][index])
+            if degree == 0:  # the weight enters no gate
+                continue
+            points = 2 * degree + 1
+            offsets = 2.0 * np.pi * np.arange(points) / points
+            frequencies = np.arange(-degree, degree + 1)
+            basis_at_points = np.exp(-1j * np.outer(frequencies, offsets)) / points  # (K, M)
+            basis_on_grid = np.exp(1j * np.outer(grid, frequencies))  # (G, K)
             theta0 = weights[layer, index]
             variants = np.repeat(weights[None], points, axis=0)
             variants[:, layer, index] = theta0 + offsets
@@ -325,7 +388,8 @@ def train_variational_qcnn(
         if np.any((x < 0) | (x > 1)) or not np.all(np.isin(y, (-1.0, 1.0))):
             raise ValueError(f"{name} features must be in [0, 1] and labels in -1/+1.")
     weights = np.asarray(initial_weights, dtype=float).copy()
-    if weights.shape != (len(evaluator.occurrences), 4) or not np.isfinite(weights).all():
+    weight_shape = tuple(getattr(evaluator, "weight_shape", (len(evaluator.occurrences), 4)))
+    if weights.shape != weight_shape or not np.isfinite(weights).all():
         raise ValueError("initial_weights have an unexpected shape or non-finite values.")
 
     start = time.perf_counter()
@@ -429,6 +493,7 @@ def train_variational_qcnn(
 
 __all__ = [
     "OPTIMIZERS",
+    "AnsatzEvaluator",
     "FastEvaluator",
     "QiboEvaluator",
     "VariationalTrainingConfig",

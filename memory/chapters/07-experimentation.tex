@@ -18,20 +18,23 @@
 \section{Preprocesamiento y reducción mediante PCA}
 \pending{Explicar la reducción de 30 características a cuatro componentes y la prevención de fuga de información.}
 
-\section{Convergencia}
-\pending{Analizar 10, 20 y 30 épocas y justificar la configuración de referencia.}
+\section{Línea variacional: fases A, B y C}
+\pending{Presentar el ajuste de hiperparámetros en validación (fase A), la confirmación en partición 42 con exacto/shots/ruido/mismo coste (fases B en Breast Cancer e Iris) y el estudio principal pre-registrado de 10 particiones con corrección de Holm (fase C, 1280 entrenamientos), derivando tablas y figuras desde \texttt{results/variational/}.}
 
-\section{Entrenamiento sin optimizador híbrido}
-\pending{Presentar el protocolo y los resultados de QGD, COBYLA y SPSA con presupuestos ampliados, varias semillas e intervalos de confianza; comparar con la referencia Adam y analizar el efecto de la discretización y del ruido.}
+\section{Prototipo QGD y diagnóstico de ejecución}
+\pending{Documentar los perfiles exploratorios M5, los screens parciales S0/G0/U0, el bloqueo no-op de \texttt{b=5/lr=0.1}, los defectos de ruido de Qibo 0.1.11 y las decisiones pendientes de tutoría, sin presentar cifras exploratorias como evaluación de rendimiento.}
 
-\section{Variabilidad entre semillas}
-\pending{Analizar la estabilidad de la QCNN en varias inicializaciones.}
+\section{Diagnóstico del cono de luz y arquitecturas alternativas}
+\pending{Presentar el hallazgo del cono de luz en \texttt{v1} (3 características y 5 pesos efectivos; \texttt{results/diagnostics/light-cone/}), las arquitecturas \texttt{v1-param-pool} y \texttt{qibo}, y los resultados comparativos cuando se apruebe su evaluación.}
+
+\section{Variabilidad entre semillas y particiones}
+\pending{Analizar la estabilidad entre inicializaciones y el contraste entre una sola partición (semilla 42) y 10 particiones independientes (fase C).}
 
 \section{Comparación de codificaciones}
-\pending{Comparar codificación angular y por fase manteniendo constantes los demás factores.}
+\pending{Comparar codificación angular y por fase manteniendo constantes los demás factores, reportando IC bootstrap y significación tras Holm.}
 
-\section{Shots y ruido}
-\pending{Analizar el efecto de 50 shots y ruido depolarizante sobre rendimiento, estabilidad y coste.}
+\section{Shots, ruido y preparación para hardware (BSC)}
+\pending{Analizar el efecto de 1000 shots, ruido local exacto en matriz de densidad, error de lectura, pruebas en seco con \texttt{HardwareMockExecutor}, estimaciones de coste para MareNostrum5-Ona y, si se dispone de acceso a tiempo, resultados en hardware real (H1/H2).}
 
 \section{Comparación con el baseline clásico}
 \pending{Comparar con regresión logística usando la misma partición y métricas.}

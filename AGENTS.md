@@ -41,10 +41,11 @@ reunión, una validación ni un resultado.
   usa el simulador Qibo, no un proveedor de hardware. El CLI está en
   `experiments/run_quantum_training.py`. La suite de 92 pruebas se reejecutó
   en `bc877bd` limpio el 12 de noviembre de 2026 (OK). La validación más
-  reciente pasó la suite completa de 157 pruebas el 25 de noviembre de 2026
-  sobre un árbol de trabajo sucio basado en `73faad9` (interfaz QML Workbench,
-  sección 38 del log; con la plataforma Qt `offscreen`); 73, 88, 92, 124 y
-  138 son conteos históricos.
+  reciente pasó la suite completa de 180 pruebas el 27 de noviembre de 2026
+  sobre un árbol de trabajo sucio basado en `b5abe03` (arquitecturas QCNN
+  alternativas y correcciones de Qililab/transpilación física, secciones 40-41
+  del log; con la plataforma Qt `offscreen`, Python 3.14.3); 73, 88, 92, 124,
+  138, 157 y 176 son conteos históricos.
 - **Nueva línea variacional (implementada, validada unitariamente y evaluada
   en simulación):** `src/fast_qcnn.py` (simulador NumPy vectorizado, idéntico a Qibo
   con error < 1e-10, ~76 veces más rápido) y `src/variational_training.py`
@@ -76,6 +77,15 @@ reunión, una validación ni un resultado.
   gradiente). Afecta a todas las rutas. Los resultados siguen siendo válidos
   para este circuito; corregirlo cambia el modelo y es una decisión pendiente
   de la tutoría. Evidencia: `results/diagnostics/light-cone/`.
+- **Arquitecturas alternativas (26-nov, sección 40 del log; implementadas y
+  validadas unitariamente, no evaluadas):** `src/qcnn_architectures.py` añade
+  `v1-param-pool` (pooling parametrizado `RY(a) RY(b) CNOT RY(-a)`, 12 pesos;
+  las 4 características y los 12 pesos influyen) y `qibo` (ansatz de
+  `qibo.models.QuantumCNN`, 42 pesos, sin sesgo y con nuestra codificación; 2
+  pesos sin efecto). `v1` se conserva intacto para reproducir A-C. Evidencia:
+  `results/diagnostics/light-cone-v1-param-pool/` y `light-cone-qibo/`. La
+  comparación de las tres arquitecturas con el protocolo de la fase C está
+  pendiente de la tutoría (decisión 6).
 - **Ruido corregido:** desde el 12 de noviembre de 2026 el ruido por defecto
   es un canal local exacto (matriz de densidad, `PauliNoiseChannel`) con
   shots independientes. Los JSON M5/screens se generaron con el modo
@@ -154,6 +164,10 @@ JSON de resultados y su configuración.
   matriz de densidad con ruido local y error de lectura), validado contra Qibo.
 - `src/variational_training.py`: entrenamiento variacional sin PyTorch con
   GD, Adam, SPSA y optimizador secuencial; checkpoint solo por validation.
+  `AnsatzEvaluator` entrena cualquier arquitectura de `qcnn_architectures`.
+- `src/qcnn_architectures.py`: arquitecturas QCNN como programas de puertas
+  (`v1`, `v1-param-pool`, `qibo`), simulador por lotes basado en `fast_qcnn`
+  (estado puro o matriz de densidad) y constructor de circuitos Qibo.
 - `src/quantum_training.py`: bucle integrado QGD con ejecución exacta o medida,
   gradientes parameter-shift y selección por validación; postprocesamiento y
   control siguen siendo clásicos.
@@ -182,19 +196,27 @@ JSON de resultados y su configuración.
   del historial, con reevaluación exacta del test una vez por regla).
 - `experiments/diagnose_light_cone.py`: qué características, pesos y
   apariciones influyen en la salida (cono de luz); salida en
-  `results/diagnostics/light-cone/`.
+  `results/diagnostics/light-cone/` (v1) y, con `--architecture`, en
+  `results/diagnostics/light-cone-<arquitectura>/`.
 - `experiments/plot_variational_report.py`: figuras y tablas LaTeX de
   `docs/reports/` derivadas de los JSON de las fases A-C.
-- Plan BSC (fase 1, implementado y validado en simulación; sin acceso ni
-  ejecución en hardware; `docs/bsc/README.md`, sección 35 del log):
+- Plan BSC (fase 1 y preparación piloto, implementado y validado en
+  simulación; sin acceso ni ejecución en hardware; `docs/bsc/README.md` y
+  `docs/bsc/pilot-execution.md`, secciones 35 y 41 del log):
   `src/hardware_cost.py` (coste en circuitos y modelos de tiempo supuestos),
-  `src/transpilation.py` (layout, SWAPs y puertas nativas supuestas
-  `{RX,RY,RZ,CZ}`; Qibo 0.1.11 no trae transpilador),
-  `src/hardware_execution.py` (ejecución por lotes, mock ruidoso de hardware,
-  mitigación de lectura y `QililabExecutor` como esqueleto no funcional),
-  `experiments/run_hardware_inference.py`, `experiments/estimate_hardware_cost.py`,
-  `experiments/make_variational_jobs.py`, `slurm/` (marcadores `<...>`) y
-  `tests/test_hardware_preparation.py`.
+  `src/transpilation.py` (layout, SWAPs, puertas nativas supuestas
+  `{RX,RY,RZ,CZ}` y opción `compact=False` para índices físicos reales; Qibo
+  0.1.11 no trae transpilador), `src/hardware_execution.py` (ejecución por
+  lotes, mock ruidoso de hardware, mitigación de lectura y `QililabExecutor`
+  conectado por defecto a `src/qililab_adapter.py`), `src/qililab_adapter.py`
+  (llamada pública `qililab.execute(circuit, runcard, nshots=...)`, no validado
+  en hardware real), `experiments/run_qililab_smoke.py` (prueba mínima 1–2
+  qubits), `experiments/run_hardware_inference.py`,
+  `experiments/estimate_hardware_cost.py`, `experiments/make_variational_jobs.py`,
+  `slurm/` (marcadores pendientes), `results/hardware/local-pilot/` y
+  `tests/test_hardware_preparation.py` (21 pruebas). Las arquitecturas
+  `v1-param-pool` y `qibo` aún no están integradas en el transpilador ni en el
+  estimador de coste hardware.
 - `src/workbench/`: interfaz QML Workbench (sección 38 del log; implementada
   y validada). Patrón MVC: `model/` (grafo con puertos tipados, esquemas de
   parámetros, registros de nodos y algoritmos, motor con caché, preprocesado
@@ -212,6 +234,8 @@ JSON de resultados y su configuración.
   con Qibo, optimizadores, runner y análisis de la línea variacional.
   `tests/test_partition_analysis.py`: equivalencia de la patience
   reconstruida con entrenamientos reales y Holm.
+  `tests/test_qcnn_architectures.py`: estructura, equivalencia con Qibo, cono
+  de luz y paridad de entrenamiento de las tres arquitecturas.
 - `results/initial-hybrid-adam/`: resultados históricos congelados.
 - `results/reproductions/legacy/`: repeticiones de experimentos antiguos.
 - `results/quantum-training/`: cinco perfiles exploratorios M5 y README; no son
@@ -220,13 +244,14 @@ JSON de resultados y su configuración.
 - `docs/experimental-protocol.md`: protocolo experimental base.
 - `docs/quantum-training-plan.md`: plan del entrenamiento no híbrido.
 - `docs/tutor-briefing-2026-11-12.md`: resumen para la tutoría (actualizado el
-  20-nov con el plan BSC); su versión PDF está en `docs/reports/`.
+  20, 24 y 27 de noviembre); su versión PDF está en `docs/reports/`.
 - `docs/reports/`: informes LaTeX/PDF (resultados variacionales, resumen para
   la tutoría y guía de fundamentos para preparar la tutoría), con figuras y
   tablas generadas desde los JSON por
   `experiments/plot_variational_report.py`; no forman parte de la memoria.
-- `docs/bsc/`: plan de ejecución en MareNostrum5-Ona y datos técnicos para la
-  solicitud RES (`cost-estimates.md/json`, generados).
+- `docs/bsc/`: plan de ejecución en MareNostrum5-Ona, guía de ejecución piloto
+  (`pilot-execution.md`) y datos técnicos para la solicitud RES
+  (`cost-estimates.md/json`, generados).
 - `memory/`: memoria LaTeX modular; `main.tex`, `preamble.tex`, capítulos,
   anexos y `bibliography.bib` (todavía sin referencias verificadas).
 
@@ -375,7 +400,7 @@ TFG en cada mensaje.
   (la versión de HEAD incluía Jupyter y paquetes no importados directamente);
   no es una lista mínima curada.
 - **Dependencias alineadas para Python 3.10.13:** `requirements.txt` conserva
-  los pins de `origin/python3.9-variation` y añade PySide6 6.12.0, aprobado para
+  los pins de `origin/python3.10-variation` y añade PySide6 6.12.0, aprobado para
   la Workbench. El archivo actual tiene 57 líneas UTF-8; elimina el stack
   Jupyter y `torchvision`, e incluye `scikit-learn==1.6.1`. Esta alineación se
   aprobó el 25 de noviembre de 2026.
@@ -413,7 +438,9 @@ TFG en cada mensaje.
   memoria del vector de estado.
 - La salida de la QCNN actual ignora la característica x3 y los pesos w1-w3 de
   la capa 2 por la cancelación de CNOT entre convolución y pooling (sección 37
-  del log). No presentar el modelo como si usara las 4 características.
+  del log). No presentar el modelo como si usara las 4 características. Las
+  arquitecturas `v1-param-pool` y `qibo` no tienen esa limitación, pero aún no
+  se han evaluado.
 - El parameter-shift vuelve a ejecutar el circuito por cada aparición de puerta
   parametrizada; es el principal cuello de botella.
 - La clasificación implementada es binaria; no hay multiclase ni minibatches.
@@ -432,11 +459,14 @@ TFG en cada mensaje.
   código evita. La línea variacional modela además un error de lectura
   simétrico opcional; no hay amplitude ni phase damping.
 - La simulación es local en CPU y no representa hardware cuántico real.
-- Preparación BSC (sección 35 del log): las topologías y las puertas nativas
-  `{RX,RY,RZ,CZ}` del transpilador son supuestas, el ruido del mock y el modelo
-  de tiempo con lotes son supuestos, `QililabExecutor` lanza
-  `NotImplementedError` y los scripts `slurm/` tienen marcadores `<...>` sin
-  verificar. No presentar esta preparación como ejecución en hardware.
+- Preparación BSC (secciones 35 y 41 del log): las topologías y las puertas
+  nativas `{RX,RY,RZ,CZ}` del transpilador son supuestas, el ruido del mock y
+  el modelo de tiempo con lotes son supuestos, `QililabExecutor` delega por
+  defecto en `src/qililab_adapter.py` (lanza `RuntimeError` si `qililab` no
+  está instalado y solo está validado con mocks en memoria, nunca contra
+  Qililab/Ona real) y los scripts `slurm/` tienen parámetros pendientes de
+  confirmar con el BSC. No presentar esta preparación como ejecución en
+  hardware.
 - Los resultados históricos usan pocas semillas y un único test; no permiten
   afirmaciones fuertes de significación.
 - La ruta QGD M1-M5 está implementada y validada unitariamente. Solo hay cinco

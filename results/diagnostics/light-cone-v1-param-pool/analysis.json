@@ -1,0 +1,347 @@
+{
+  "kind": "light-cone-diagnostic",
+  "provenance": {
+    "git_revision": "b5abe03380c8926a87ee0aa2997c1e4171779481",
+    "working_tree_dirty": true,
+    "working_tree_status": [
+      " M experiments/diagnose_light_cone.py",
+      " M src/fast_qcnn.py",
+      " M src/variational_training.py",
+      " M src/workbench/model/algorithms/qcnn.py",
+      "?? src/qcnn_architectures.py"
+    ],
+    "uncommitted_diff_sha256": "e28f307bfe010d96a89da9a8e063607060b51fc7657c74c31be9caa3cecfddea",
+    "untracked_code_sha256": [
+      {
+        "path": "src/qcnn_architectures.py",
+        "sha256": "1c5c684d384ecab3ac47f2141c8facb028b65d7f17f94f86c8bf91410ef35f32"
+      }
+    ],
+    "python": "3.14.3 (tags/v3.14.3:323c59a, Feb  3 2026, 16:04:56) [MSC v.1944 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "packages": {
+      "numpy": "2.5.3",
+      "scipy": "1.18.1",
+      "qibo": "0.1.11",
+      "scikit-learn": "1.9.1",
+      "torch": "2.14.0"
+    },
+    "command_argv": [
+      "C:\\Users\\jadve\\Documents\\UPO\\qml-interface-tfg\\qml_env\\Scripts\\python.exe",
+      "-m",
+      "experiments.run_variational_benchmark",
+      "C:\\Users\\jadve\\Documents\\UPO\\qml-interface-tfg\\experiments\\diagnose_light_cone.py",
+      "--architecture",
+      "v1-param-pool",
+      "--output-dir",
+      "results/diagnostics/light-cone-v1-param-pool"
+    ]
+  },
+  "arguments": {
+    "samples": 40,
+    "seed": 2026,
+    "architecture": "v1-param-pool"
+  },
+  "tolerance": 1e-09,
+  "architecture_summary": {
+    "architecture": "v1-param-pool",
+    "n_qubits": 4,
+    "n_layers": 2,
+    "weight_shape": [
+      2,
+      6
+    ],
+    "trainable_weights": 12,
+    "parametrized_occurrences": 25,
+    "cnot_count": 11,
+    "readout_qubit": 0,
+    "param_labels": [
+      "w0",
+      "w1",
+      "w2",
+      "w3",
+      "pool_keep",
+      "pool_discard"
+    ]
+  },
+  "encodings": [
+    {
+      "architecture": {
+        "architecture": "v1-param-pool",
+        "n_qubits": 4,
+        "n_layers": 2,
+        "weight_shape": [
+          2,
+          6
+        ],
+        "trainable_weights": 12,
+        "parametrized_occurrences": 25,
+        "cnot_count": 11,
+        "readout_qubit": 0,
+        "param_labels": [
+          "w0",
+          "w1",
+          "w2",
+          "w3",
+          "pool_keep",
+          "pool_discard"
+        ]
+      },
+      "encoding": "angle",
+      "samples": 40,
+      "max_abs_output_change_per_feature": [
+        0.7322370559804612,
+        0.5892594276218717,
+        0.7766260347324463,
+        1.2972960027305103
+      ],
+      "features_without_influence": [],
+      "max_abs_output_change_per_weight": [
+        [
+          0.9610512027934223,
+          0.813400490734115,
+          1.3103924835135294,
+          0.8124279339001625,
+          0.7581283907030836,
+          0.6240837512544524
+        ],
+        [
+          1.105769151618031,
+          0.5571199779488257,
+          1.5836727792721208,
+          0.7436893978859775,
+          0.9709205434848669,
+          1.057662174696317
+        ]
+      ],
+      "weights_without_influence": [],
+      "max_abs_parameter_shift_contribution_per_occurrence": {
+        "000-layer0-ry0-w0": 0.44301566605412057,
+        "001-layer0-rz0-w1": 0.45461743604410354,
+        "002-layer0-ry1-w2": 0.6762698492424466,
+        "003-layer0-rz1-w3": 0.3906839283826514,
+        "004-layer0-ry1-w0": 0.4041566664546271,
+        "005-layer0-rz1-w1": 0.673055185106743,
+        "006-layer0-ry2-w2": 0.5649050502907881,
+        "007-layer0-rz2-w3": 0.21788933671079366,
+        "008-layer0-ry2-w0": 0.4452553159758754,
+        "009-layer0-rz2-w1": 0.2617384075991779,
+        "010-layer0-ry3-w2": 0.6155284021403642,
+        "011-layer0-rz3-w3": 0.3168437279084634,
+        "012-layer0-ry0-pool_keep": 0.8299758719172745,
+        "013-layer0-ry1-pool_discard": 0.5269546740242999,
+        "014-layer0-ry0--pool_keep": 0.8402459537151133,
+        "015-layer0-ry2-pool_keep": 0.5767248114626655,
+        "016-layer0-ry3-pool_discard": 0.49018392893263446,
+        "017-layer0-ry2--pool_keep": 0.7778178812076655,
+        "018-layer1-ry0-w0": 0.840245953715113,
+        "019-layer1-rz0-w1": 0.39933024688193414,
+        "020-layer1-ry2-w2": 0.6244210134661607,
+        "021-layer1-rz2-w3": 0.4987787743191453,
+        "022-layer1-ry0-pool_keep": 0.6302330146214503,
+        "023-layer1-ry2-pool_discard": 0.5699225544871578,
+        "024-layer1-ry0--pool_keep": 0.5727393489055439
+      },
+      "live_occurrences": 25,
+      "total_occurrences": 25,
+      "structural_degree_per_weight": {
+        "0,w0": 3,
+        "0,w1": 3,
+        "0,w2": 3,
+        "0,w3": 3,
+        "0,pool_keep": 4,
+        "0,pool_discard": 2,
+        "1,w0": 1,
+        "1,w1": 1,
+        "1,w2": 1,
+        "1,w3": 1,
+        "1,pool_keep": 2,
+        "1,pool_discard": 1
+      },
+      "effective_trigonometric_degree_per_weight": {
+        "0,w0": [
+          3
+        ],
+        "0,w1": [
+          3
+        ],
+        "0,w2": [
+          3
+        ],
+        "0,w3": [
+          3
+        ],
+        "0,pool_keep": [
+          4
+        ],
+        "0,pool_discard": [
+          2
+        ],
+        "1,w0": [
+          1
+        ],
+        "1,w1": [
+          1
+        ],
+        "1,w2": [
+          1
+        ],
+        "1,w3": [
+          1
+        ],
+        "1,pool_keep": [
+          2
+        ],
+        "1,pool_discard": [
+          1
+        ]
+      },
+      "circuits_per_sample": {
+        "parameter_shift_current": 51,
+        "parameter_shift_live_occurrences_only": 51,
+        "sequential_current": 62,
+        "sequential_effective_degree": 62
+      },
+      "fast_vs_qibo_max_abs_difference": 4.440892098500626e-16
+    },
+    {
+      "architecture": {
+        "architecture": "v1-param-pool",
+        "n_qubits": 4,
+        "n_layers": 2,
+        "weight_shape": [
+          2,
+          6
+        ],
+        "trainable_weights": 12,
+        "parametrized_occurrences": 25,
+        "cnot_count": 11,
+        "readout_qubit": 0,
+        "param_labels": [
+          "w0",
+          "w1",
+          "w2",
+          "w3",
+          "pool_keep",
+          "pool_discard"
+        ]
+      },
+      "encoding": "phase",
+      "samples": 40,
+      "max_abs_output_change_per_feature": [
+        0.9894411203556546,
+        0.6470518902412861,
+        0.5217998360685112,
+        0.7398414537527668
+      ],
+      "features_without_influence": [],
+      "max_abs_output_change_per_weight": [
+        [
+          0.7924669031916991,
+          0.7261281420880042,
+          0.6667146117453862,
+          0.9294798669706168,
+          0.657004138578187,
+          0.6864177506081937
+        ],
+        [
+          0.870892428095617,
+          0.5763293267813527,
+          0.5790857017440565,
+          0.5145652127184059,
+          0.9150126009493778,
+          1.1280597412621867
+        ]
+      ],
+      "weights_without_influence": [],
+      "max_abs_parameter_shift_contribution_per_occurrence": {
+        "000-layer0-ry0-w0": 0.3674579291932485,
+        "001-layer0-rz0-w1": 0.5474168766046565,
+        "002-layer0-ry1-w2": 0.5003991345434501,
+        "003-layer0-rz1-w3": 0.5331172440283319,
+        "004-layer0-ry1-w0": 0.6743471849235771,
+        "005-layer0-rz1-w1": 0.5241456836118094,
+        "006-layer0-ry2-w2": 0.3379976220238262,
+        "007-layer0-rz2-w3": 0.3881899891543297,
+        "008-layer0-ry2-w0": 0.36305182603602637,
+        "009-layer0-rz2-w1": 0.3848286789194171,
+        "010-layer0-ry3-w2": 0.3890387889542552,
+        "011-layer0-rz3-w3": 0.2443902329960964,
+        "012-layer0-ry0-pool_keep": 0.5806120719290593,
+        "013-layer0-ry1-pool_discard": 0.5916946399714822,
+        "014-layer0-ry0--pool_keep": 0.7089834260424928,
+        "015-layer0-ry2-pool_keep": 0.5308723373049568,
+        "016-layer0-ry3-pool_discard": 0.35363273003397877,
+        "017-layer0-ry2--pool_keep": 0.4339539024613973,
+        "018-layer1-ry0-w0": 0.708983426042493,
+        "019-layer1-rz0-w1": 0.3495437312266021,
+        "020-layer1-ry2-w2": 0.5397944126323322,
+        "021-layer1-rz2-w3": 0.3299778661589776,
+        "022-layer1-ry0-pool_keep": 0.5450688906415344,
+        "023-layer1-ry2-pool_discard": 0.6498850769815672,
+        "024-layer1-ry0--pool_keep": 0.5155543001352132
+      },
+      "live_occurrences": 25,
+      "total_occurrences": 25,
+      "structural_degree_per_weight": {
+        "0,w0": 3,
+        "0,w1": 3,
+        "0,w2": 3,
+        "0,w3": 3,
+        "0,pool_keep": 4,
+        "0,pool_discard": 2,
+        "1,w0": 1,
+        "1,w1": 1,
+        "1,w2": 1,
+        "1,w3": 1,
+        "1,pool_keep": 2,
+        "1,pool_discard": 1
+      },
+      "effective_trigonometric_degree_per_weight": {
+        "0,w0": [
+          3
+        ],
+        "0,w1": [
+          3
+        ],
+        "0,w2": [
+          3
+        ],
+        "0,w3": [
+          3
+        ],
+        "0,pool_keep": [
+          4
+        ],
+        "0,pool_discard": [
+          2
+        ],
+        "1,w0": [
+          1
+        ],
+        "1,w1": [
+          1
+        ],
+        "1,w2": [
+          1
+        ],
+        "1,w3": [
+          1
+        ],
+        "1,pool_keep": [
+          2
+        ],
+        "1,pool_discard": [
+          1
+        ]
+      },
+      "circuits_per_sample": {
+        "parameter_shift_current": 51,
+        "parameter_shift_live_occurrences_only": 51,
+        "sequential_current": 62,
+        "sequential_effective_degree": 62
+      },
+      "fast_vs_qibo_max_abs_difference": 5.412337245047638e-16
+    }
+  ]
+}

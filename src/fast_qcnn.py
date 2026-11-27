@@ -183,6 +183,42 @@ class FastQCNN:
                 state = self._depolarize(state, qubit)
         return state
 
+    def _encode(self, features, density):
+        """Initial |0...0> state followed by the data encoding of every qubit."""
+        rows = features.shape[0]
+        if density:
+            state = np.zeros((rows, self.dim, self.dim), dtype=complex)
+            state[:, 0, 0] = 1.0
+        else:
+            state = np.zeros((rows, self.dim), dtype=complex)
+            state[:, 0] = 1.0
+        hadamard = np.broadcast_to(
+            np.array([[1, 1], [1, -1]], dtype=complex) / np.sqrt(2.0), (rows, 2, 2)
+        )
+        for qubit in range(self.n):
+            if self.config.encoding == "angle":
+                state = self._apply_1q(state, self._ry(np.pi * features[:, qubit]), qubit, density)
+            else:
+                state = self._apply_1q(state, hadamard, qubit, density)  # H is noiseless
+                state = self._apply_1q(
+                    state, self._rz(2.0 * np.pi * features[:, qubit]), qubit, density
+                )
+            state = self._noise(state, (qubit,), density)
+        return state
+
+    def _measure_z(self, state, qubits, density):
+        """Z expectations of ``qubits`` (readout bit-flip included)."""
+        if density:
+            probabilities = np.real(np.einsum("rii->ri", state))
+        else:
+            probabilities = np.abs(state) ** 2
+        index = np.arange(self.dim)
+        result = np.empty((state.shape[0], len(qubits)))
+        for out, qubit in enumerate(qubits):
+            signs = 1.0 - 2.0 * ((index >> (self.n - 1 - qubit)) & 1)
+            result[:, out] = probabilities @ signs
+        return (1.0 - 2.0 * self.config.readout_error) * result
+
     # --------------------------------------------------------------- simulation
     def expectations_from_angles(self, angles, features) -> np.ndarray:
         """Exact (noisy if configured) Z expectations, shape ``(rows, n_outputs)``.
@@ -198,25 +234,7 @@ class FastQCNN:
         if angles.shape != (rows, len(self.layers), self.max_pairs, 4):
             raise ValueError("angles have an unexpected shape.")
         density = self.config.noisy
-        if density:
-            state = np.zeros((rows, self.dim, self.dim), dtype=complex)
-            state[:, 0, 0] = 1.0
-        else:
-            state = np.zeros((rows, self.dim), dtype=complex)
-            state[:, 0] = 1.0
-
-        hadamard = np.broadcast_to(
-            np.array([[1, 1], [1, -1]], dtype=complex) / np.sqrt(2.0), (rows, 2, 2)
-        )
-        for qubit in range(self.n):
-            if self.config.encoding == "angle":
-                state = self._apply_1q(state, self._ry(np.pi * features[:, qubit]), qubit, density)
-            else:
-                state = self._apply_1q(state, hadamard, qubit, density)  # H is noiseless
-                state = self._apply_1q(
-                    state, self._rz(2.0 * np.pi * features[:, qubit]), qubit, density
-                )
-            state = self._noise(state, (qubit,), density)
+        state = self._encode(features, density)
 
         for layer_index, (pairs, pooling) in enumerate(self.layers):
             for pair_index, (left, right) in enumerate(pairs):
@@ -230,16 +248,7 @@ class FastQCNN:
             for control, target in pooling:
                 state = self._noise(self._apply_cnot(state, control, target, density), (control, target), density)
 
-        if density:
-            probabilities = np.real(np.einsum("rii->ri", state))
-        else:
-            probabilities = np.abs(state) ** 2
-        index = np.arange(self.dim)
-        result = np.empty((rows, len(self.final_active)))
-        for out, qubit in enumerate(self.final_active):
-            signs = 1.0 - 2.0 * ((index >> (self.n - 1 - qubit)) & 1)
-            result[:, out] = probabilities @ signs
-        return (1.0 - 2.0 * self.config.readout_error) * result
+        return self._measure_z(state, self.final_active, density)
 
     def angles_from_weights(self, weights) -> np.ndarray:
         """Broadcast shared weights ``(rows, L, 4)`` or ``(L, 4)`` to occurrences."""

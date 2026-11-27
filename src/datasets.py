@@ -180,7 +180,7 @@ def load_binary_breast_cancer_splits(
     """
     if test_fraction is None:
         test_fraction = 1.0 - train_fraction - validation_fraction
-    if not isinstance(n_components, int) or n_components < 1:
+    if isinstance(n_components, bool) or not isinstance(n_components, int) or n_components < 1:
         raise ValueError("n_components must be a positive integer.")
     dataset = load_breast_cancer()
     values = dataset.data

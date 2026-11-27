@@ -1317,7 +1317,7 @@ Revisión de los commits `25a0e69`, `52ce86c` y `b9499d0`, que aún no estaban e
 
 **Estado: implementado; validación en CPython 3.10 pendiente.**
 
-**Decisión:** se priorizan en `requirements.txt` los pins de `origin/python3.9-variation` (objetivo CPython 3.10.13) y se añade únicamente `PySide6==6.12.0` para conservar la interfaz Workbench. `scikit-learn` queda fijado en 1.6.1, como en la rama. El README documenta la creación de un entorno separado `.venv-py310`.
+**Decisión:** se priorizan en `requirements.txt` los pins de `origin/python3.10-variation` (objetivo CPython 3.10.13) y se añade únicamente `PySide6==6.12.0` para conservar la interfaz Workbench. `scikit-learn` queda fijado en 1.6.1, como en la rama. El README documenta la creación de un entorno separado `.venv-py310`.
 
 **Auditoría de código:** los módulos locales de Workbench y el cambio de callback de entrenamiento usan sintaxis de Python 3.10; no se encontró uso de APIs de Python 3.11+ en las rutas revisadas. Los archivos Python locales y los archivos Python modificados por la rama pasaron un análisis AST con `feature_version=(3, 10)`. La rama añade anotaciones futuras en los módulos compartidos y su adaptador Qililab carga la dependencia externa solo al ejecutar; no se encontró conflicto de API con los usos de Workbench.
 
@@ -1330,3 +1330,80 @@ Revisión de los commits `25a0e69`, `52ce86c` y `b9499d0`, que aún no estaban e
 **Pendiente:** este entorno no tiene CPython 3.10.13; no se instalaron dependencias ni se ejecutó la suite completa en esta comprobación. Tampoco se ejecutó `git merge`, commit ni push. La compatibilidad de runtime con la versión objetivo requiere instalar el manifiesto en `.venv-py310` y ejecutar pruebas allí. La sección 38 contiene conteos previos contradictorios de 157 y 158 pruebas completas; no se reconcilian en esta tarea.
 
 **Actualización (25-nov, pulido visual):** paleta propia (fondos grafito, azul #5B8CFF como acción principal y fichas cian, violeta, ámbar y verde por categoría, aplicadas también a puertos y gráficas); botones con texto y borde visibles, estados hover, pulsado y activo; nodos más grandes, plantilla más espaciada, paleta de nodos en filas con nombre y descripción, y selector de tema sincronizado. Solo cambia la vista. Pruebas de la Workbench OK.
+
+## 40. Arquitecturas QCNN alternativas: pooling corregido y ansatz de Qibo (26 de noviembre de 2026)
+
+**Estado: implementado y validado unitariamente; no evaluado.** Tras el merge `b5abe03` (rama de ejecución real en `main`), se aborda el hallazgo de la sección 37 sin alterar el circuito `v1`, que sigue respaldando las fases A-C.
+
+**Implementado:**
+- `src/qcnn_architectures.py` describe cada arquitectura como un programa de puertas con pesos `(capas, pesos por capa)` compartidos por todos los pares de una capa:
+  - `v1`: el circuito original, sin cambios (8 pesos, 16 apariciones, 11 CNOT, lectura en el qubit 0).
+  - `v1-param-pool`: la misma convolución con el pooling `RY(a) superviviente · RY(b) descartado · CNOT(descartado, superviviente) · RY(−a) superviviente`, que es la versión mínima, con una CNOT, del pooling de Qibo (12 pesos, 25 apariciones, 11 CNOT).
+  - `qibo`: el ansatz de `qibo.models.QuantumCNN` con el ansatz de dos qubits por defecto, transcrito del código fuente de la rama `main` de Qibo (la clase no existe en Qibo 0.1.11). Convolución de 15 parámetros `R R RZZ RYY RXX R R` con `R = RX RY RZ`, sobre los pares `(0,1),(2,3)` y el anillo `(1,2),(3,0)` (una sola pasada con dos qubits activos), y pooling de 6 parámetros `R(sumidero) R(fuente) CNOT(fuente, sumidero) R(sumidero)⁻¹` de la primera a la segunda mitad de los qubits activos. Lectura en el qubit 3; 42 pesos, 102 apariciones y 3 CNOT.
+  - **Diferencias deliberadas con la clase de Qibo:** sin sesgo entrenable, con nuestra codificación (angular o de fase) en lugar de un estado inicial y entrenado con nuestros optimizadores (MSE sobre etiquetas −1/+1) en lugar de `qibo.optimizers`.
+- El simulador `AnsatzQCNN` reutiliza `FastQCNN` (estado puro, o matriz de densidad con ruido depolarizante local tras cada puerta y error de lectura) y añade rotaciones de dos qubits. `build_qibo_circuit` y `qibo_expectation` construyen el circuito Qibo de referencia, que es también la vía hacia el hardware.
+- `src/fast_qcnn.py` extrae la codificación y la medida a métodos auxiliares (`_encode` y `_measure_z`) sin cambiar los resultados.
+- En `src/variational_training.py`:
+  - `AnsatzEvaluator` entrena cualquier arquitectura (parameter-shift por aparición con su coeficiente ±1);
+  - el bucle acepta la forma de pesos del evaluador;
+  - el optimizador secuencial usa el grado estructural de cada peso y omite los pesos de grado 0.
+
+  `FastEvaluator` y `v1` no cambian.
+- Workbench: parámetro «Arquitectura» en el nodo QML (`v1` por defecto, de modo que las plantillas y la paridad con la fase C se mantienen). El estado del modelo exportado incluye el resumen de la arquitectura.
+- `experiments/diagnose_light_cone.py` acepta `--architecture`. Para `v1` hace el mismo análisis que antes; para las demás, el análisis equivalente sobre el simulador genérico contrastado con Qibo.
+
+**Validado:**
+- `tests/test_qcnn_architectures.py`, 14 pruebas:
+  - estructura y disposición de Qibo;
+  - `v1` genérico idéntico a `FastQCNN`, exacto y con ruido;
+  - las tres arquitecturas coinciden con Qibo en las dos codificaciones;
+  - cono de luz;
+  - `AnsatzEvaluator("v1")` da los mismos pesos y circuitos que `FastEvaluator` con Adam, SPSA y secuencial y con shots;
+  - gradiente parameter-shift igual a diferencias finitas (≤ 1e-6);
+  - el barrido secuencial exacto no aumenta la pérdida.
+- Prueba nueva en `tests/test_workbench.py` con las tres arquitecturas.
+- Suite completa: 176 pruebas OK con Qt `offscreen` (Python 3.14.3; no se ha validado en CPython 3.10). `compileall` y `git diff --check`: OK.
+- Diagnóstico del cono de luz (40 muestras por codificación, semilla 2026):
+
+| | `v1` | `v1-param-pool` | `qibo` |
+|---|---|---|---|
+| Características con influencia | 3 de 4 (x3 no) | 4 de 4 | 4 de 4 |
+| Pesos con influencia | 5 de 8 | 12 de 12 | 40 de 42 |
+| Apariciones con gradiente | 7 de 16 | 25 de 25 | 99 de 102 |
+| Circuitos por muestra, parameter-shift | 33 | 51 | 205 |
+| Circuitos por muestra, secuencial | 40 | 62 | 246 |
+| CNOT por circuito | 11 | 11 | 3 |
+
+  Evidencia: `results/diagnostics/light-cone-v1-param-pool/` y `results/diagnostics/light-cone-qibo/`.
+- **Hallazgo menor en el ansatz de Qibo:** el último parámetro del pooling (`pool5`, la `RZ` del qubit fuente justo antes de la CNOT) no influye en la salida en ninguna capa. `RZ` es diagonal y conmuta con el control de la CNOT, y el qubit fuente se descarta después. Son 2 de 42 pesos redundantes, que no afectan a la corrección.
+
+**No evaluado:** la única ejecución de cada arquitectura fue una comprobación de funcionamiento en la plantilla del Workbench: Iris, partición 42, secuencial, 20 pasos y una semilla. No es una comparación. El ansatz de Qibo tarda unas 15 veces más por paso. La comparación de las tres arquitecturas con el protocolo pre-registrado de la fase C (particiones nuevas, test una vez y Holm) sigue pendiente de la tutoría (decisión 6). Tampoco se han preparado las arquitecturas nuevas para el transpilador ni para el adaptador Qililab: `hardware_cost`, `transpilation` y `run_hardware_inference` siguen asumiendo `v1`.
+
+## 41. Auditoría integral, corrección de la integración Qililab y sincronización documental (27 de noviembre de 2026)
+
+**Estado: implementado y validado unitariamente en el entorno local (Python 3.14.3); validación en CPython 3.10.13 y en hardware QPU pendiente.**
+
+Tras el merge `b5abe03` (*Merge rama de ejecución real (Python 3.10.13, Qililab)*, que integró `src/qililab_adapter.py`, `experiments/run_qililab_smoke.py` y `docs/bsc/pilot-execution.md`) y los cambios sin confirmar de la sección 40 (`src/qcnn_architectures.py`), una auditoría completa detectó tres defectos en la ruta Qililab y desincronizaciones documentales:
+
+**Correcciones de código:**
+- `src/qililab_adapter.py`:
+  - `_normalize_counts` ahora omite entradas con conteo `0` (evitando el rechazo de `validate_counts`, que exige `count >= 1`) y convierte explícitamente los conteos a `int` nativo (evitando fallos de serialización con `np.int64`); se eliminó el `if/elif/else` redundante.
+  - `execute_batch` valida ahora que todos los qubits usados por las puertas del circuito pertenecen a `physical_qubits` en lugar de exigir `nqubits <= len(physical_qubits)`, corrigiendo el fallo inmediato de `experiments/run_qililab_smoke.py` para cualquier qubit físico distinto de `0` (p. ej. `--physical-qubits 4` o `4,5`).
+- `src/transpilation.py` y `experiments/run_hardware_inference.py`:
+  - `transpile(..., compact=True)` incorpora `compact=False` para emitir circuitos directamente sobre los índices físicos reales (`Circuit(max(used) + 1)`) sin compactar a `0..len(used)-1`.
+  - `run_hardware_inference.py` usa `compact=True` con `mock` y `compact=False` con `qililab` (calibrando la lectura también sobre el índice físico real `measured_physical[0]`), asegurando coherencia entre el layout elegido y los qubits ejecutados por Qililab.
+- `src/hardware_execution.py` y `experiments/run_hardware_inference.py`: actualizados los docstrings obsoletos que todavía describían `QililabExecutor` como «esqueleto no funcional».
+- Mejoras menores de robustez: validación de longitud de `angles` en `build_qibo_circuit` (`src/qcnn_architectures.py`), filtrado de líneas vacías y comprobación `np.isfinite` en `load_csv` (`src/workbench/model/nodes/dataset.py`), rechazo de `bool` en `n_qubits`/`n_outputs`/`n_components` (`src/qcnn_engine.py`, `src/hybrid_model.py`, `src/datasets.py`) y corrección de docstring obsoleto en `src/qcnn_engine.py`.
+
+**Validación (27-nov-2026, árbol sucio basado en `b5abe03`, Python 3.14.3, `QT_QPA_PLATFORM=offscreen`):**
+- Añadidas 4 pruebas de regresión en `tests/test_hardware_preparation.py` (total: 21 pruebas en ese archivo): conteos con cero y `np.int64`, rechazo de circuitos fuera de `physical_qubits`, `run_qililab_smoke.main` en qubits `4` y `4,5`, y `transpile(..., compact=False)` + `run_hardware_inference.main --executor qililab` sobre `2-3,3-4,4-5` con módulo `qililab` simulado en memoria.
+- `qml_env\Scripts\python.exe -B -m unittest discover -s tests -v`: **180 pruebas OK** (42,3 s).
+- `qml_env\Scripts\python.exe -m compileall -q src experiments tests`: **OK**.
+- **Nota de entorno:** en esta máquina están instalados Python 3.14 y 3.12 (no CPython 3.10.13); la validación de runtime en `.venv-py310` sigue pendiente.
+
+**Sincronización documental e higiene:**
+- Corregida la referencia errónea `python3.9-variation` → `python3.10-variation` en `AGENTS.md`, `README.md` y sección 39 de este log.
+- Actualizados `AGENTS.md`, `README.md`, `docs/bsc/README.md`, `docs/bsc/res-application-draft.md`, `docs/workbench/README.md`, `docs/experimental-protocol.md`, `slurm/README.md`, `slurm/mn5_gpp_array.sbatch`, `docs/tutor-briefing-2026-11-12.{md,tex}`, `docs/reports/guia-fundamentos-tutoria.tex` y `docs/reports/variational-results.tex` para reflejar el estado real de `src/qililab_adapter.py`, Workbench, arquitecturas alternativas y las 180 pruebas.
+- Sincronizada la configuración `.opencode/` (agentes, skills y `record-results`) con `AGENTS.md`.
+- Corregidos los defectos estructurales de `memory/main.tex` y `memory/frontmatter/summary.tex` (`page.I` duplicado y `\phantomsection`) y alineados los guiones `\pending{}` de los capítulos 05–07 y Anexo A con la arquitectura real (QML Workbench PySide6 MVC, línea variacional A–C, cono de luz y plan BSC), manteniendo todos los marcadores `\pending{}` intactos.
+- Añadidos `.gitattributes` (LF para código, docs y scripts Slurm), `.venv-py310/` en `.gitignore` y `results/hardware/local-pilot/README.md`; retirado el worktree obsoleto `tfg-qcnn-algorithm-development` (commit `97f0c0d`, ya contenido en `main`). El paquete externo `qml-interface-tfg-claude-handoff/` queda clasificado como instantánea histórica congelada del 12-nov (`bc877bd`).

@@ -6,29 +6,29 @@
 \section{Implementación del núcleo experimental}
 \pending{Describir configuraciones, validaciones, datasets, entrenamiento, métricas y persistencia implementados.}
 
-\section{Implementación de la QCNN}
-\pending{Explicar la implementación concreta de codificaciones, convolución, pooling, observables y parameter-shift.}
+\section{Implementación de la QCNN y arquitecturas}
+\pending{Explicar la implementación concreta de codificaciones, convolución, pooling lógico, observables, parameter-shift, simulador rápido vectorizado (\texttt{src/fast\_qcnn.py}) y arquitecturas alternativas (\texttt{src/qcnn\_architectures.py}: \texttt{v1}, \texttt{v1-param-pool} y \texttt{qibo}).}
 
-\section{Entrenamiento cuántico y actualización de pesos}
-\pending{Documentar la sustitución del entrenamiento híbrido con PyTorch y Adam por una función de pérdida evaluada en Qibo y una actualización de pesos mediante un circuito cuántico discreto (QGD). Incluir el contrato del motor puro, los optimizadores sin gradientes, la discretización de pesos y gradientes, y las limitaciones del control clásico que permanece en el bucle.}
+\section{Entrenamiento variacional y ruta QGD}
+\pending{Documentar la evolución desde el legado híbrido (PyTorch/Adam) hacia la línea variacional sin PyTorch (\texttt{src/variational\_training.py}: GD, Adam, SPSA y secuencial tipo Rotosolve/NFT) y el prototipo QGD M1--M5 (\texttt{src/quantum\_update.py}, \texttt{src/quantum\_training.py}), detallando la desviación modular reversible y el control clásico remanente.}
 
 \section{Implementación del pipeline de datos}
-\pending{Describir particionado estratificado, normalización, PCA y transformación de etiquetas.}
+\pending{Describir particionado estratificado, normalización min-max, PCA en Breast Cancer ajustado solo en train y transformación de etiquetas \texttt{-1/+1}.}
 
-\section{Implementación de la ejecución cuántica}
-\pending{Documentar simulación exacta, shots, ruido depolarizante y semillas.}
+\section{Implementación de la ejecución cuántica y preparación BSC}
+\pending{Documentar simulación exacta, shots, ruido local exacto en matriz de densidad frente al modo legado de Qibo 0.1.11, mitigación de lectura, transpilador propio (\texttt{src/transpilation.py}), mock hardware y adaptador \texttt{src/qililab\_adapter.py} (no validado aún en QPU).}
 
-\section{Implementación del backend}
-\pending{Describir los servicios y endpoints implementados cuando estén disponibles. Diferenciar diseño de implementación real.}
+\section{Implementación del modelo y controlador de QML Workbench}
+\pending{Describir las capas libres de Qt en \texttt{src/workbench/model/} y \texttt{src/workbench/controller/}, la ejecución CLI sin interfaz (\texttt{src/workbench/run.py}) y la paridad exacta con la fase C.}
 
-\section{Implementación del frontend}
-\pending{Describir componentes, vistas y flujos implementados cuando estén disponibles.}
+\section{Implementación de la vista en PySide6}
+\pending{Describir los componentes gráficos de \texttt{src/workbench/view/} (lienzo, paleta, formularios dinámicos, panel de resultados, exportación JSON/CSV y \texttt{GuiDispatcher}).}
 
 \section{Integración entre capas}
-\pending{Explicar el flujo completo desde la interfaz hasta la ejecución y la consulta de resultados.}
+\pending{Explicar el flujo completo desde el grafo de QML Workbench y los scripts de \texttt{experiments/} hasta los motores de ejecución y la persistencia de resultados.}
 
 \section{Pruebas}
-\pending{Documentar pruebas unitarias, integración, API, interfaz, reproducibilidad y regresión.}
+\pending{Documentar la suite completa de pruebas unitarias y de integración (\texttt{tests/}, incluida la vista Qt en modo \texttt{offscreen}), equivalencia con Qibo, reproducibilidad, cono de luz y preparación BSC.}
 
 \section{Limitaciones de implementación}
 \pending{Registrar características no implementadas y decisiones técnicas pendientes.}

@@ -4,33 +4,33 @@
 \pending{Explicar modularidad, separación de responsabilidades, extensibilidad, reproducibilidad y errores explícitos.}
 
 \section{Arquitectura general}
-\pending{Presentar la arquitectura formada por frontend, API, backend, gestor de experimentos, motor QML y persistencia.}
+\pending{Presentar la arquitectura modular de la plataforma: aplicación de escritorio QML Workbench (patrón MVC con PySide6, sin backend web ni API REST), motor de grafos de nodos con caché, motor experimental QML (línea variacional, ruta QGD y preparación para hardware BSC/Qililab) y persistencia en JSON/CSV/\texttt{*.qmlflow}.}
 \placeholderfigure{Arquitectura general de la plataforma}{6cm}
 
-\section{Diseño del frontend}
-\pending{Definir vistas, navegación, formularios, estado, progreso, resultados, gráficas y mensajes de error.}
+\section{Diseño de la vista (QML Workbench)}
+\pending{Definir la interfaz de escritorio en PySide6 (\texttt{src/workbench/view/}): lienzo de nodos, paleta por categorías, panel de parámetros generado por esquema, inspector \texttt{.qmlflow}, paneles de métricas/curvas/matriz de confusión/registro y temas claro/oscuro.}
 
-\section{Diseño del backend}
-\pending{Definir servicios, validación, gestión de tareas, estados, errores y coordinación con el motor experimental.}
+\section{Diseño del controlador y ejecución concurrente}
+\pending{Definir el controlador libre de Qt (\texttt{src/workbench/controller/}): mediación vista-modelo, eventos observables, ejecución de flujos en hilo secundario, progreso por nodo y cancelación segura.}
 
-\section{Diseño de la API}
-\pending{Especificar recursos, operaciones, contratos, errores y versionado de la API.}
+\section{Diseño del modelo de flujos y puertos tipados}
+\pending{Especificar el grafo acíclico dirigido (\texttt{src/workbench/model/}), puertos tipados (\texttt{Dataset}, \texttt{TrainingResult}, \texttt{EvaluationReport}), validación de conexiones, motor con caché, preprocesado sin fugas y plantillas \texttt{*.qmlflow}.}
 
 \section{Diseño del motor experimental QML}
-\pending{Definir configuración común, registro de modelos, entrenamiento, evaluación, métricas y formato de resultados.}
+\pending{Definir la configuración común, registro de nodos y algoritmos, simulador vectorizado (\texttt{fast\_qcnn}), arquitecturas QCNN (\texttt{qcnn\_architectures}), entrenamiento variacional (GD, Adam, SPSA, secuencial), evaluación, métricas y formato de resultados.}
 
-\section{Diseño del entrenamiento cuántico}
-\pending{Especificar el contrato del motor puro, la función de pérdida evaluada en Qibo, los optimizadores sin gradientes y el mecanismo de actualización cuántica de pesos. Diferenciar con claridad las partes cuánticas de las que siguen siendo control clásico.}
+\section{Diseño del entrenamiento cuántico (QGD) y frontera clásica-cuántica}
+\pending{Especificar el contrato \texttt{CircuitExecutor}/\texttt{ResourceProfile}, la función de pérdida evaluada en Qibo, la actualización aritmética reversible modular (\texttt{quantum\_update}) frente al clipping del plan inicial, y diferenciar con claridad las operaciones cuánticas del control clásico.}
 
-\section{Diseño de la QCNN}
-\pending{Documentar codificación, convolución, pooling, observable, parameter-shift y arquitectura 4--2--1.}
+\section{Diseño de la QCNN y arquitecturas alternativas}
+\pending{Documentar codificación (angular y fase), convolución compartida, pooling lógico, observable Pauli-$Z$, parameter-shift, el hallazgo del cono de luz en \texttt{v1} (cancelación de CNOT: 3 características y 5 pesos efectivos) y las arquitecturas alternativas \texttt{v1-param-pool} y \texttt{qibo}.}
 
-\section{Diseño de la persistencia}
-\pending{Definir entidades, relaciones, estados, configuración efectiva, métricas, logs y artefactos.}
+\section{Diseño de la persistencia y trazabilidad}
+\pending{Definir esquemas JSON de resultados, exportación CSV, proyectos \texttt{*.qmlflow}, procedencia (revisión Git, hash del diff, semillas separadas, huellas de partición) y logs.}
 \placeholderfigure{Modelo de datos de la plataforma}{6cm}
 
 \section{Diseño de extensibilidad}
-\pending{Explicar cómo se incorporará un nuevo algoritmo QML sin modificar las capas comunes.}
+\pending{Explicar cómo se incorpora un nuevo algoritmo QML (\texttt{@register\_algorithm}), un nuevo nodo (\texttt{@register\_node}) o una nueva plantilla sin modificar las capas comunes.}
 
-\section{Diseño del despliegue}
-\pending{Describir ejecución local, servicios, configuración, variables de entorno y posibles contenedores.}
+\section{Diseño de la preparación para hardware y despliegue}
+\pending{Describir ejecución local (entorno CPython 3.10.13 / \texttt{requirements.txt}), transpilador mínimo (\texttt{transpilation.py}), modelo de coste, mitigación de lectura, adaptador \texttt{QililabExecutor}/\texttt{qililab\_adapter} y plantillas Slurm para MareNostrum5-Ona y MN5-GPP.}

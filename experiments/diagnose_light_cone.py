@@ -13,9 +13,13 @@ This diagnostic checks it numerically for the current 4-qubit circuit:
 * a cross-check of the fast simulator against the Qibo circuit builder.
 
 It is a property of the circuit, independent of data and training. Nothing is
-trained or evaluated on test data.
+trained or evaluated on test data. ``--architecture v1`` (default) is the
+original analysis through the Qibo engine (``results/diagnostics/light-cone/``);
+``v1-param-pool`` and ``qibo`` run the same checks on the architectures of
+``src/qcnn_architectures.py``, cross-checked against their Qibo circuits.
 
     qml_env/Scripts/python.exe -B -m experiments.diagnose_light_cone --output-dir results/diagnostics/light-cone
+    qml_env/Scripts/python.exe -B -m experiments.diagnose_light_cone --architecture qibo --output-dir results/diagnostics/light-cone-qibo
 """
 
 from __future__ import annotations
@@ -29,6 +33,7 @@ import numpy as np
 
 from experiments.run_variational_benchmark import collect_provenance
 from src.fast_qcnn import FastQCNN, FastQCNNConfig, qcnn_layout
+from src.qcnn_architectures import ARCHITECTURES, AnsatzQCNN, build_ansatz, qibo_expectation
 from src.qcnn_engine import QCNNConfig, build_qcnn_circuit
 from src.transpilation import measured_marginal
 
@@ -121,9 +126,84 @@ def analyse(encoding: str, samples: int, rng: np.random.Generator) -> dict:
     }
 
 
+def analyse_architecture(architecture: str, encoding: str, samples: int, rng: np.random.Generator) -> dict:
+    """Same checks as :func:`analyse` for any architecture of ``qcnn_architectures``."""
+    ansatz = build_ansatz(architecture, 4)
+    sim = AnsatzQCNN(ansatz, encoding)
+    layers, params = ansatz.weight_shape
+    structural = ansatz.weight_degrees
+    feature_change = np.zeros(4)
+    weight_change = np.zeros(ansatz.weight_shape)
+    occurrence: dict[str, float] = {}
+    degrees: dict[str, set[int]] = {}
+    max_cross_check = 0.0
+    grid = np.linspace(-np.pi, np.pi, 120)
+    for _ in range(samples):
+        w = rng.uniform(-np.pi, np.pi, ansatz.weight_shape)
+        x = rng.uniform(0.0, 1.0, (1, 4))
+        base = float(sim.expectations(w, x)[0, 0])
+        max_cross_check = max(max_cross_check, abs(base - qibo_expectation(ansatz, w, x[0], encoding)))
+        for i in range(4):
+            x2 = x.copy()
+            x2[0, i] = rng.uniform(0.0, 1.0)
+            feature_change[i] = max(feature_change[i], abs(float(sim.expectations(w, x2)[0, 0]) - base))
+        for layer in range(layers):
+            for k in range(params):
+                w2 = w.copy()
+                w2[layer, k] = rng.uniform(-np.pi, np.pi)
+                weight_change[layer, k] = max(weight_change[layer, k],
+                                              abs(float(sim.expectations(w2, x)[0, 0]) - base))
+
+                def output(value, layer=layer, k=k):
+                    w3 = w.copy()
+                    w3[layer, k] = value
+                    return float(sim.expectations(w3, x)[0, 0])
+
+                degrees.setdefault(f"{layer},{ansatz.param_labels[k]}", set()).add(
+                    effective_degree(output, int(structural[layer, k]), grid))
+        angles, feats, _index, _n_shift = sim.shift_rows(w, x)
+        shifted = sim.expectations_from_angles(angles, feats)[:, 0]
+        for column, gate_index in enumerate(ansatz.occurrences):
+            key = f"{column:03d}-{ansatz.occurrence_label(gate_index)}"
+            contribution = abs(shifted[2 * column] - shifted[2 * column + 1]) / 2
+            occurrence[key] = max(occurrence.get(key, 0.0), float(contribution))
+
+    live = sum(v > TOLERANCE for v in occurrence.values())
+    max_degree = {key: max(values) for key, values in degrees.items()}
+    return {
+        "architecture": ansatz.summary(),
+        "encoding": encoding,
+        "samples": samples,
+        "max_abs_output_change_per_feature": feature_change.tolist(),
+        "features_without_influence": [i for i in range(4) if feature_change[i] < TOLERANCE],
+        "max_abs_output_change_per_weight": weight_change.tolist(),
+        "weights_without_influence": [[l, ansatz.param_labels[k]] for l in range(layers) for k in range(params)
+                                      if weight_change[l, k] < TOLERANCE],
+        "max_abs_parameter_shift_contribution_per_occurrence": occurrence,
+        "live_occurrences": live,
+        "total_occurrences": len(occurrence),
+        "structural_degree_per_weight": {f"{l},{ansatz.param_labels[k]}": int(structural[l, k])
+                                         for l in range(layers) for k in range(params)},
+        "effective_trigonometric_degree_per_weight": {key: sorted(v) for key, v in degrees.items()},
+        "circuits_per_sample": {
+            "parameter_shift_current": 1 + 2 * len(occurrence),
+            "parameter_shift_live_occurrences_only": 1 + 2 * live,
+            "sequential_current": int(sum(2 * d + 1 for d in structural.reshape(-1) if d > 0)),
+            "sequential_effective_degree": sum(2 * d + 1 for d in max_degree.values() if d > 0),
+        },
+        "fast_vs_qibo_max_abs_difference": max_cross_check,
+    }
+
+
 def render(result: dict) -> str:
-    lines = ["# Diagnóstico del cono de luz de la QCNN (generado)", "",
+    architecture = result.get("arguments", {}).get("architecture", "v1")
+    lines = [f"# Diagnóstico del cono de luz de la QCNN, arquitectura `{architecture}` (generado)", "",
              "Generado por `experiments/diagnose_light_cone.py`. Propiedad del circuito, independiente de los datos.", ""]
+    if "architecture_summary" in result:
+        summary = result["architecture_summary"]
+        lines += [f"Pesos entrenables: {summary['trainable_weights']} (forma {summary['weight_shape']}); "
+                  f"apariciones parametrizadas: {summary['parametrized_occurrences']}; "
+                  f"CNOT: {summary['cnot_count']}; qubit de lectura: {summary['readout_qubit']}.", ""]
     for r in result["encodings"]:
         c = r["circuits_per_sample"]
         lines += [
@@ -148,6 +228,7 @@ def main(argv: list[str] | None = None) -> dict:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--samples", type=int, default=40)
     parser.add_argument("--seed", type=int, default=2026)
+    parser.add_argument("--architecture", choices=ARCHITECTURES, default="v1")
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args(argv)
     if (args.output_dir / "analysis.json").exists():
@@ -158,8 +239,14 @@ def main(argv: list[str] | None = None) -> dict:
         "provenance": collect_provenance(sys.argv if argv is None else ["diagnose_light_cone", *argv]),
         "arguments": {"samples": args.samples, "seed": args.seed},
         "tolerance": TOLERANCE,
-        "encodings": [analyse(encoding, args.samples, rng) for encoding in ("angle", "phase")],
     }
+    if args.architecture == "v1":
+        result["encodings"] = [analyse(encoding, args.samples, rng) for encoding in ("angle", "phase")]
+    else:
+        result["arguments"]["architecture"] = args.architecture
+        result["architecture_summary"] = build_ansatz(args.architecture, 4).summary()
+        result["encodings"] = [analyse_architecture(args.architecture, encoding, args.samples, rng)
+                               for encoding in ("angle", "phase")]
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "analysis.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     (args.output_dir / "analysis.md").write_text(render(result), encoding="utf-8")

@@ -34,49 +34,50 @@ incorporar otros modelos QML sin rehacer las capas comunes.
 8. `src/classical_baseline.py` entrena una regresión logística externa al motor
    QML, con la misma partición y transformaciones.
 
-## Estado actual del código
+## Estado actual del código (27 de noviembre de 2026)
 
-- **Implementado:** QCNN con codificación angular o por fase, pooling lógico
-  `4 -> 2 -> 1`, expectativa Z, parameter-shift, simulación exacta, shots,
-  ruido depolarizante, semilla, Adam/SGD, métricas binarias y baseline.
-- **Implementado:** datasets Iris binario y Breast Cancer Wisconsin con PCA a
-  cuatro componentes ajustado solo con train.
-- **Implementado:** experimentos `compare_execution.py`,
-  `diagnose_convergence.py` y `run_final_qcnn.py`.
-- **Implementado y validado unitariamente (M1-M5):** motor puro, optimizadores
-  autónomos COBYLA/SPSA/Nelder-Mead, actualización QGD modular, executor medido,
-  bucle y CLI. La suite completa pasó 92 pruebas el 10 de noviembre de 2026
-  mediante `qml_env\Scripts\python.exe -m unittest discover -s tests -v`,
-  además de `compileall` y `git diff --check`, en un árbol sucio basado en
-  `164eaee2b05ed53f9950afe8a272ca91f5e292df`; 73 y 88 son conteos históricos
-  (véase la sección 29 del log).
-- **Perfiles exploratorios, no evaluación de rendimiento:** se ejecutaron cinco
-  JSON de dos pasos y 100 shots: cuatro de Iris (dos codificaciones y ruido `0`
-  o `0.001`) y uno de Breast Cancer (angular, ruido `0`). Están en
-  `results/quantum-training/`; solo permiten inspeccionar flujo/coste. No hay
-  evaluación de convergencia ni ejecución en hardware.
-- **Screens S0/G0/U0, parciales:** 12 JSON válidos y 15 logs; S0 incompleto,
-  G0 completo para el bloque definido y U0 con tres fallos y una sola ejecución
-  válida. No evalúan test y no son evaluación de rendimiento. Con `b=5/lr=0.1`
-  el delta entero de QGD es cero y los pesos solo se cuantizan. El ruido de
-  Qibo se muestrea una vez por ejecución, no por shot. Véanse las secciones
-  28-29 del log.
-- **Frontera actual:** sin executor, el gradiente inicial es exacto/sin ruido,
-  gradientes posteriores usan shots si se configuran, y el update se simula
-  exactamente. `--measured-execution`, o ruido solicitado mayor que cero, activa
-  counts finitos para los gradientes, predicciones y actualización. El host
-  prepara y decodifica registros, calcula/acumula gradientes y pérdidas,
-  selecciona por validation y controla el bucle. No describirlo como
-  entrenamiento totalmente cuántico.
-- **Desviación QGD:** actualización modular reversible que conserva el registro
-  del gradiente; gradientes fuera de rango se saturan. No equivale al clipping
-  propuesto; requiere una decisión sobre esta variante concreta. El objetivo del
-  tutor, según la aclaración del responsable, es preparar ejecución en hardware
-  cuántico real y mover el ajuste de pesos al circuito, evitando el ajuste
-  clásico. La implementación actual aún no satisface ese objetivo de extremo a
-  extremo.
-- **Histórico:** los resultados de la etapa híbrida están congelados en
-  `results/initial-hybrid-adam/`.
+La fuente de verdad viva del estado y el mapa completo de archivos es `AGENTS.md`
+junto con `docs/TFG-technical-log.md` (secciones 30-41). Resumen operativo:
+
+- **Suite completa:** **180 pruebas OK** (27-nov-2026, árbol sucio basado en
+  `b5abe03`, `QT_QPA_PLATFORM=offscreen`, Python 3.14.3; `compileall` OK).
+  Validación en CPython 3.10.13 (`.venv-py310`) pendiente.
+- **Línea variacional (evaluada en simulación):** `src/fast_qcnn.py` (simulador
+  NumPy vectorizado ~76× más rápido, error < 1e-10 frente a Qibo) y
+  `src/variational_training.py` (GD, Adam, SPSA y secuencial tipo Rotosolve/NFT;
+  checkpoint solo por validation incluido el paso 0). Evaluada en fases A, B
+  (Breast Cancer e Iris, partición 42) y C (pre-registrada, 10 particiones por
+  dataset, 1280 entrenamientos, corrección Holm) en `results/variational/`.
+  Hallazgos: supera a la mayoritaria pero queda por debajo de la regresión
+  logística; ninguna diferencia de accuracy frente a Adam es significativa tras
+  Holm; el secuencial reduce los circuitos 3,2–9,4× en las 40 combinaciones.
+- **Hallazgo del cono de luz y arquitecturas alternativas:** en `v1` la
+  convolución y el pooling repiten la misma CNOT y se anulan (salida solo
+  depende de 3 características y 5 pesos; `results/diagnostics/light-cone/`).
+  `src/qcnn_architectures.py` implementa y valida unitariamente `v1-param-pool`
+  (12 pesos, cono completo) y `qibo` (42 pesos, ansatz `QuantumCNN`, 40 con
+  influencia) manteniendo `v1` intacto. Evaluación en fase C pendiente de
+  tutoría (decisión 6).
+- **QML Workbench (implementado y validado):** aplicación de escritorio PySide6
+  con patrón MVC en `src/workbench/` (`model/` y `controller/` sin Qt; solo
+  `view/` importa PySide6), paridad verificada con la fase C y soporte para las
+  tres arquitecturas (`tests/test_workbench.py`, 18 pruebas;
+  `docs/workbench/README.md`).
+- **Preparación BSC / MareNostrum5-Ona (implementado y validado en simulación /
+  mocks; sin QPU):** `src/hardware_cost.py`, `src/transpilation.py` (con
+  `compact=False` para índices físicos reales), `src/hardware_execution.py`
+  (`HardwareMockExecutor`, calibración/mitigación de lectura, `QililabExecutor`),
+  `src/qililab_adapter.py` (`qililab.execute`), `experiments/run_qililab_smoke.py`,
+  `experiments/run_hardware_inference.py`, `slurm/`, `docs/bsc/` y
+  `tests/test_hardware_preparation.py` (21 pruebas). Sin validar en hardware real.
+- **Ruta QGD M1-M5 (implementada y validada unitariamente; no evaluada):**
+  solo existen 5 perfiles exploratorios y screens parciales S0/G0/U0 con
+  `b=5/lr=0.1` no-op y ruido legado (`results/quantum-training/`). Desviación
+  modular reversible pendiente de aprobación del tutor.
+- **Ruido corregido:** desde el 12-nov (§30) el modo por defecto es
+  `density_matrix` exacto (`PauliNoiseChannel`) con shots independientes;
+  `legacy_shared_trajectory` reproduce el comportamiento histórico de Qibo 0.1.11.
+- **Legado híbrido:** congelado en `results/initial-hybrid-adam/`.
 
 ## Decisiones metodológicas vigentes
 
@@ -115,63 +116,49 @@ equivalentes.
 
 - El parameter-shift es el principal coste: reejecuta el circuito por cada
   aparición de puerta parametrizada.
-- El pooling no reduce la memoria del vector de estado.
+- El pooling es lógico: no reduce la memoria del vector de estado.
+- `v1` ignora `x3` y `w1–w3` de capa 2 (sección 37). `v1-param-pool` y `qibo`
+  no tienen ese bloqueo pero aún no están evaluadas ni integradas en
+  `transpilation`/`hardware_cost`/`run_hardware_inference`.
 - Solo clasificación binaria; no hay multiclase ni minibatches.
-- En M5, el ruido local de sensibilidad es un canal depolarizante de una qubit
-  después de cada puerta lógica en cada qubit tocado; no está calibrado ni
-  pretende representar fielmente hardware. No se modelan errores de medición,
-  amplitude damping ni phase damping.
-- Simulación local en CPU; no es hardware cuántico real.
-- Pocas semillas y una sola partición de test en los resultados históricos.
-- El método QGD tiene cinco perfiles exploratorios y screens parciales, pero no
-  evaluación de convergencia/rendimiento ni ejecución en hardware real. No
-  existe adaptador de proveedor, selección de backend, transpilación ni
-  validación de conectividad o base de puertas. El objetivo de hardware y de
-  ajuste de pesos en circuito viene indicado por el tutor; la variante modular
-  concreta y las operaciones host admisibles necesitan definirse y contrastarse
-  antes de afirmar cumplimiento.
-- Con `b=5/lr=0.1`, `weight=[-π,π]` y `grad=[-1,1]`, el delta entero de QGD es
-  cero para los 32 códigos de gradiente; los pesos solo se cuantizan. U0 tiene
-  tres fallos y una sola ejecución válida. La configuración oficial y la
-  política de U0 siguen pendientes del tutor.
-- En Qibo 0.1.11 el ruido depolarizante se muestrea una vez por ejecución del
-  circuito, no por shot; los shots comparten la misma trayectoria de Pauli y no
-  promedian realizaciones de ruido. Una `mode_probability=1.0` no demuestra
-  ausencia de ruido.
-- En el árbol actual `requirements.txt` está modificado (122→51 líneas,
-  UTF-16LE→UTF-8) y aprobado para el commit de cierre del 10 de noviembre de
-  2026. `load_binary_iris()` fue eliminado de `src/datasets.py`; la ruptura se
-  documenta como intencionada y debe usarse `load_binary_iris_splits()`.
-- `src/quantum_training.py` no importa Torch, pero el runner carga
-  `src.datasets`, que importa Torch y devuelve tensores; estos se convierten a
-  NumPy en la frontera del entrenamiento.
-- `requirements.txt` contiene una lista amplia similar a un freeze del entorno,
-  no un manifiesto mínimo; `scikit-learn` no está fijado. La versión de HEAD
-  incluía `torchvision` sin import directo en `src/` ni `experiments/`; la
-  versión actual, aprobada para el commit de cierre, elimina el stack Jupyter y
-  `torchvision`. No limpiar ni actualizar dependencias de nuevo sin aprobación.
+- El ruido local es de sensibilidad (depolarizante + error de lectura simétrico
+  opcional en la línea variacional / asimétrico en el mock hardware), sin
+  amplitude ni phase damping ni calibración real de QPU. En el modo
+  `legacy_shared_trajectory` (usado en los JSON M5/screens previos al 12-nov),
+  Qibo 0.1.11 muestrea una sola trayectoria compartida por todos los shots.
+- Simulación local en CPU; ninguna ejecución real en MareNostrum5-Ona todavía.
+  `QililabExecutor`/`src/qililab_adapter.py` solo están probados con mocks en
+  memoria; topologías, puertas nativas `{RX,RY,RZ,CZ}` y tiempos con lotes son
+  supuestos.
+- QGD M1-M5 no tiene ninguna ejecución con pesos que se muevan (`b=5/lr=0.1` es
+  estático); su regla modular y la política de U0 siguen pendientes de tutoría.
+- `load_binary_iris()` se eliminó intencionadamente; usar
+  `load_binary_iris_splits()`.
 
 ## Dónde mirar
 
-- Decisiones técnicas: `docs/TFG-technical-log.md`.
+- Estado vivo y mapa completo: `AGENTS.md`.
+- Decisiones técnicas: `docs/TFG-technical-log.md` (secciones 1-41).
 - Protocolo: `docs/experimental-protocol.md`.
-- Plan no híbrido: `docs/quantum-training-plan.md`.
-- Resultados: `results/initial-hybrid-adam/`,
-  `results/reproductions/legacy/` y `results/quantum-training/`.
-- Protocolo QGD y decisiones abiertas: `docs/quantum-training-plan.md`,
-  `docs/TFG-technical-log.md` secciones 23 y 28-29.
-- Memoria: `memory/main.tex`, `memory/preamble.tex` y `memory/chapters/`.
+- Plan histórico QGD: `docs/quantum-training-plan.md` (plan, no estado actual).
+- Tutoría e informes PDF: `docs/tutor-briefing-2026-11-12.md` y `docs/reports/`.
+- Plan BSC y piloto Ona: `docs/bsc/README.md`, `docs/bsc/pilot-execution.md`,
+  `docs/bsc/res-application-draft.md`, `slurm/`.
+- Workbench: `docs/workbench/README.md`.
+- Resultados: `results/initial-hybrid-adam/`, `results/reproductions/legacy/`,
+  `results/quantum-training/`, `results/variational/`, `results/diagnostics/` y
+  `results/hardware/`.
+- Memoria: `memory/main.tex`, `memory/preamble.tex`, `memory/chapters/` y
+  `memory/bibliography.bib` (vacío).
 
 ## Entorno y dependencias comprobados
 
-- Usa `qml_env\Scripts\python.exe` en este checkout. El `python` global
-  (Python 3.14.3) no tiene Qibo.
-- Último entorno comprobado: Python 3.14.3, Qibo 0.1.11, NumPy 2.5.3,
-  SciPy 1.18.1, Torch 2.14.0, scikit-learn 1.9.1; `pip check` informó que no
-  hay dependencias rotas.
-- Imports directos necesarios: NumPy, Qibo, SciPy (optimizadores), Torch
-  (legado/loader) y scikit-learn (datasets/baseline). Matplotlib aparece en
-  `requirements.txt`; el stack Jupyter se eliminó en la versión aprobada. No se
-  encontraron imports directos de Matplotlib en código ni notebooks versionados.
-- El tipado usa sintaxis moderna (`X | Y`); documentar Python >=3.10 si se
-  ordena la instalación. El mínimo no está declarado actualmente.
+- `requirements.txt` (57 líneas, UTF-8, aprobado el 25-nov-2026) conserva los
+  pins de `origin/python3.10-variation` (objetivo CPython 3.10.13,
+  `scikit-learn==1.6.1`) y añade `PySide6==6.12.0` para Workbench.
+- Entorno local verificado: `qml_env\Scripts\python.exe` (Python 3.14.3,
+  Qibo 0.1.11, NumPy 2.5.3, SciPy 1.18.1, Torch 2.14.0, scikit-learn 1.9.1,
+  PySide6, Matplotlib, NetworkX). No valida CPython 3.10.13 (pendiente en
+  `.venv-py310`).
+- El tipado usa `from __future__ import annotations` y es compatible con
+  Python 3.10+. No instalar ni modificar dependencias sin aprobación.

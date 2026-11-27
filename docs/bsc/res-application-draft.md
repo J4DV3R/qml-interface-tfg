@@ -36,7 +36,7 @@
 
 > This activity is part of a Bachelor's thesis (TFG) at `<UNIVERSIDAD>` titled "A platform for experimentation with Quantum Machine Learning", supervised by `<TUTOR>`. The platform is built on Qibo and implements, as its first algorithm, a quantum convolutional neural network (QCNN) [REF] for binary classification. The model has 4 qubits, angle (RY) or phase (H + RZ) data encoding, two layers of translation-shared two-qubit convolutional filters (8 trainable parameters) and logical pooling. Its output is the Pauli-Z expectation value of one qubit.
 >
-> We have completed a simulation study of how this model should be trained when executed as a standard variational algorithm (quantum circuit evaluation plus classical parameter update). It compares gradient descent and Adam with parameter-shift gradients [REF], SPSA [REF], and a sequential, coordinate-wise optimizer that exactly reconstructs the cost as a trigonometric function of each parameter (Rotosolve/NFT-type) [REF]. The protocol was pre-registered: hyperparameters tuned on validation data only, test data evaluated once, majority-class and logistic-regression baselines, and 10 independent data partitions × 8 initialization seeds per dataset (1,280 training runs, Breast Cancer with 4 PCA components and binary Iris). Per-partition statistics use Holm correction. All code (138 unit tests), results and provenance (code revision, data fingerprints, seeds) are kept in a version-controlled repository.
+> We have completed a simulation study of how this model should be trained when executed as a standard variational algorithm (quantum circuit evaluation plus classical parameter update). It compares gradient descent and Adam with parameter-shift gradients [REF], SPSA [REF], and a sequential, coordinate-wise optimizer that exactly reconstructs the cost as a trigonometric function of each parameter (Rotosolve/NFT-type) [REF]. The protocol was pre-registered: hyperparameters tuned on validation data only, test data evaluated once, majority-class and logistic-regression baselines, and 10 independent data partitions × 8 initialization seeds per dataset (1,280 training runs, Breast Cancer with 4 PCA components and binary Iris). Per-partition statistics use Holm correction. All code (180 unit tests), results and provenance (code revision, data fingerprints, seeds) are kept in a version-controlled repository.
 >
 > Main simulation findings:
 > 1. The QCNN learns both tasks well above the majority class, but stays below a logistic regression on the same four features (by 0.026–0.084 in accuracy on Breast Cancer).
@@ -58,7 +58,7 @@
 
 > Need for RES resources. The activity needs (i) access to a superconducting quantum processor programmable with Qibo, available at MareNostrum5-Ona, and (ii) CPU time for noisy simulations on MareNostrum5 GPP. Training with an exact density-matrix noise model is expensive. In our measurements on a workstation, one noisy configuration set for Breast Cancer (4 optimizers × 2 encodings × 8 seeds, 1000 shots) took 22 CPU-hours for a single data partition.
 >
-> Already available (no RES time needed). Trained checkpoints for 10 partitions per dataset; a transpiler mapping the QCNN to a coupling map and a {RX, RY, RZ, CZ} gate set with SWAP routing (validated: the measured distribution is preserved to 1e-10 on line, ring, star and grid topologies); batched execution; readout-error calibration and mitigation; a hardware-inference driver that records exact, raw and mitigated metrics with full provenance. A device-like simulator (native gates on coupled qubits only, local depolarizing noise, asymmetric readout error) has been used for dry runs. Only the Qililab backend adapter remains to be connected on site.
+> Already available (no RES time needed). Trained checkpoints for 10 partitions per dataset; a transpiler mapping the QCNN to a coupling map and a {RX, RY, RZ, CZ} gate set with SWAP routing (validated: the measured distribution is preserved to 1e-10 on line, ring, star and grid topologies); batched execution; readout-error calibration and mitigation; a hardware-inference driver that records exact, raw and mitigated metrics with full provenance. A device-like simulator (native gates on coupled qubits only, local depolarizing noise, asymmetric readout error) has been used for dry runs. A Qililab adapter (`src/qililab_adapter.py`) and minimal 1--2 qubit smoke test (`experiments/run_qililab_smoke.py`) are implemented against the public `qililab.execute` API, pending on-site validation with the BSC environment and runcard.
 >
 > WP1 — Set-up and smoke test (Ona, about 1 h). Connect the Qibo/Qililab backend. Map the transpiler to the chip's real coupling map and native gates. Run readout calibration and one test-set inference (17 circuits, 1000 shots), and check the results against exact simulation within the expected noise.
 >
@@ -82,7 +82,7 @@
 > - Gate set used: RY, RZ, H, CNOT (logical); RX/RY rotations, virtual RZ and CZ after transpilation. Measurement in the computational basis.
 > - Estimated duration of the longest job: a batch of 1,376 circuits × 1000 shots (Breast Cancer inference). About 5 min under an assumed 200 µs per shot plus 20 s overhead; if each circuit must be submitted separately, about 20 s per circuit (upper bound).
 >
-> Own codes (validated with 138 unit tests): QCNN builder; transpiler (layout minimizing interaction distance, shortest-path SWAP routing, native decomposition, rotation merging); batched executor interface; readout calibration/mitigation; training (GD, Adam, SPSA, sequential reconstruction) with validation-only checkpointing; hardware-inference driver with provenance. Classical simulation uses NumPy (vectorized state-vector and density-matrix simulators validated against Qibo to 1e-10). HPC simulations run as Slurm job arrays of independent single-core jobs.
+> Own codes (validated with 180 unit tests): QCNN builder; transpiler (layout minimizing interaction distance, shortest-path SWAP routing, native decomposition, rotation merging); batched executor interface and Qililab adapter; readout calibration/mitigation; training (GD, Adam, SPSA, sequential reconstruction) with validation-only checkpointing; hardware-inference and smoke-test drivers with provenance. Classical simulation uses NumPy (vectorized state-vector and density-matrix simulators validated against Qibo to 1e-10). HPC simulations run as Slurm job arrays of independent single-core jobs.
 
 ## Paso 3. Software
 
@@ -129,13 +129,13 @@ Ninguno.
 | 1641 circuitos por repetición de WP1+WP2 | 17 + 248 + 1376 (escenarios H1-smoke, H1-iris y H1-breast-cancer) |
 | 22 h por partición (Breast Cancer, con ruido) | Suma de `WALL_SECONDS` de `results/variational/B-confirm-bc/logs/B3*` (79 909 s); Iris: `I3*` (10 856 s) |
 | 3,2–9,4 veces menos circuitos; −0,026 a −0,084 frente a la logística | `results/variational/C-partitions/analysis.md` |
-| 138 pruebas | Log técnico, sección 36 |
+| 180 pruebas | Log técnico, sección 41 |
 | 20 s por trabajo y 5,5 h por 1000 trabajos | Guía de acceso de la RES v3.3 |
 
 ## Pendiente antes de enviar
 
 - [ ] Decisiones de la tabla inicial, con el tutor.
-- [ ] **Decidir si se corrige la arquitectura** (sección 37 del log: la salida ignora x3 y 3 de los 8 pesos). Si se corrige, regenerar `cost-estimates.md` y revisar 2a, 2d y 2e (profundidad, puertas, resultados citados). Si no, describir el modelo como de 3 características efectivas y valorar podar el qubit 3.
+- [ ] **Decidir si se evalúan las arquitecturas alternativas** (secciones 37 y 40 del log: `v1` ignora x3 y 3 de los 8 pesos; `v1-param-pool` y `qibo` ya están implementadas y validadas unitariamente en `src/qcnn_architectures.py`). Si se adopta otra arquitectura, ampliar el transpilador, regenerar `cost-estimates.md` y revisar 2a, 2d y 2e (profundidad, puertas, resultados citados). Si se mantiene `v1`, describir el modelo como de 3 características efectivas y valorar podar el qubit 3.
 - [ ] Verificar e incluir las referencias `[REF]`: QCNN, parameter-shift, SPSA y Rotosolve/NFT.
 - [ ] Rellenar los datos personales, el CV y la universidad.
 - [ ] Confirmar con el BSC la topología y las puertas nativas del chip, y si MN5 GPP contabiliza nodos completos.

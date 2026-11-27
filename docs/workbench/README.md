@@ -1,6 +1,6 @@
 # QML Workbench: interfaz de la plataforma
 
-**Estado (25 de noviembre de 2026): implementado y validado** (`tests/test_workbench.py`, 17 pruebas OK en el entorno local, Python 3.14.3). Python 3.10.13 aún no se ha validado. Es una aplicación de escritorio con PySide6, basada en flujos de nodos al estilo de Orange y organizada según el patrón MVC.
+**Estado (27 de noviembre de 2026): implementado y validado** (`tests/test_workbench.py`, 18 pruebas OK en el entorno local, Python 3.14.3, plataforma Qt `offscreen`). Python 3.10.13 aún no se ha validado. Es una aplicación de escritorio con PySide6, basada en flujos de nodos al estilo de Orange y organizada según el patrón MVC.
 
 ## Uso
 
@@ -13,7 +13,7 @@ interfaz, sigue las instrucciones de
 ```
 
 - Se abre con la plantilla **«Clasificación QML»**: Dataset → QML → Procesado de resultados → Resultados, ya conectados. Es un flujo normal y se puede editar.
-- **Configurar un nodo:** se selecciona y se usa el panel «Parámetros». Los campos se generan a partir del esquema del nodo y del algoritmo elegido. Los cambios se aplican con «Aplicar», y los errores (por ejemplo, porcentajes que no suman 100) se muestran antes de aplicar.
+- **Configurar un nodo:** se selecciona y se usa el panel «Parámetros». Los campos se generan a partir del esquema del nodo y del algoritmo elegido. Los cambios válidos se aplican al momento; los errores (por ejemplo, porcentajes que no suman 100) se muestran en el formulario y no se aplican.
 - **Ejecutar:** menú *Ejecutar* o F5. La ejecución va en segundo plano, con progreso en cada nodo, y se puede cancelar con Esc. Solo se recalcula lo que ha cambiado.
 - **Ver resultados:** aparecen en los dos paneles inferiores al terminar, o al seleccionar un nodo que tenga informe. Con doble clic en «Resultados» se abre el informe completo, con métricas, curvas, matrices de confusión y configuración.
 - **Editar el flujo:**
@@ -26,7 +26,7 @@ interfaz, sigue las instrucciones de
 
 ## Diseño visual
 
-La composición imita la del IBM Quantum Composer, solo en diseño y disposición: la paleta de colores es la del sistema Carbon de IBM. La tipografía es **Bahnschrift** (estilo DIN, incluida en Windows 10/11) en la interfaz y las gráficas, y **Cascadia Code** en el código y el registro; si no están instaladas, se usan Segoe UI y Consolas.
+La composición toma como referencia el IBM Quantum Composer solo en disposición de paneles, pero utiliza una **paleta propia** (fondos grafito, azul `#5B8CFF` como acción principal y fichas cian, violeta, ámbar y verde por categoría, aplicadas también a puertos y gráficas; log técnico, sección 39). La tipografía es **Bahnschrift** (estilo DIN, incluida en Windows 10/11) en la interfaz y las gráficas, y **Cascadia Code** en el código y el registro; si no están instaladas, se usan Segoe UI y Consolas.
 
 - **Menú Ver:** muestra u oculta cada panel (Ctrl+1 a Ctrl+4) y la barra del lienzo, elige qué muestra cada panel, restablece la disposición y cambia el tema.
 - **Clic derecho** en los paneles inferiores (o el botón ✕ de su cabecera): limpia las métricas y gráficas. Los resultados siguen en la caché; al seleccionar un nodo con informe o al volver a ejecutar, reaparecen. En el panel derecho, además, permite limpiar o copiar el registro.
@@ -110,7 +110,12 @@ class MiNodo(NodeType):
 
 ## Limitaciones actuales
 
-- **Algoritmo disponible:** solo la QCNN variacional de 4 qubits. Arrastra el hallazgo del cono de luz: su salida ignora la cuarta característica y 3 de los 8 pesos, y la ventana de resultados lo avisa.
+- **Algoritmo disponible:** solo la QCNN variacional de 4 qubits, con tres arquitecturas en el parámetro «Arquitectura» (grupo Modelo):
+  - `v1` original (por defecto; reproduce las fases A-C). Arrastra el hallazgo del cono de luz: su salida ignora la cuarta característica y 3 de los 8 pesos, y la ventana de resultados lo avisa;
+  - `v1` con pooling parametrizado (12 pesos, todos con influencia);
+  - ansatz `QuantumCNN` de Qibo (42 pesos; sin sesgo entrenable y con nuestra codificación). Es unas 15 veces más lento por paso que `v1`.
+
+  Las dos arquitecturas nuevas están validadas frente a Qibo, pero no evaluadas: una ejecución aislada en la plantilla no es una comparación (log técnico, sección 40).
 - **Ejecución:** solo simulación (exacta, con shots o con ruido de sensibilidad). La ejecución en el BSC no está conectada al nodo QML.
 - **Datos:** clasificación binaria; datasets Iris binario, Breast Cancer o CSV con columnas numéricas.
 - **Edición:** no hay deshacer/rehacer, ni nodos de preprocesado o comparación todavía. Son ampliaciones previstas, posibles sin tocar el núcleo.

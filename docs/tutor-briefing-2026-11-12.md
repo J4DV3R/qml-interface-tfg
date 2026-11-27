@@ -1,6 +1,6 @@
 # Resumen para la tutoría: estado del TFG y decisiones pendientes
 
-**Fecha:** 12 de noviembre de 2026; actualizado el 20 de noviembre con el plan de ejecución en el BSC (sección 8) y **el 24 de noviembre** con el borrador de la solicitud RES y un hallazgo sobre la arquitectura del circuito (sección 9). **Base:** commits `dec0f0b`–`cbbf2a0` sobre `bc877bd` y el diagnóstico del 24 de noviembre (secciones 30–37 de `docs/TFG-technical-log.md`). Guía de fundamentos para preparar la reunión: `docs/reports/guia-fundamentos-tutoria.pdf`. Versión PDF con figuras: `docs/reports/tutor-briefing-2026-11-12.pdf`; informe detallado de resultados: `docs/reports/variational-results.pdf`.
+**Fecha:** 12 de noviembre de 2026; actualizado el 20 de noviembre (plan BSC, sección 8), el 24 de noviembre (solicitud RES y cono de luz, sección 9) y **el 27 de noviembre** (QML Workbench, alineación CPython 3.10.13 + `src/qililab_adapter.py`, arquitecturas QCNN alternativas y auditoría). **Base:** commits `dec0f0b`–`b5abe03` + cambios locales de las secciones 30–41 de `docs/TFG-technical-log.md`. Guía de fundamentos para preparar la reunión: `docs/reports/guia-fundamentos-tutoria.pdf`. Versión PDF con figuras: `docs/reports/tutor-briefing-2026-11-12.pdf`; informe detallado de resultados: `docs/reports/variational-results.pdf`.
 
 Estados usados: **Propuesto** (solo en plan), **Implementado** (código sin evaluar), **Validado** (prueba concreta superada) y **Evaluado** (experimento con resultados persistidos y analizados).
 
@@ -8,9 +8,10 @@ Estados usados: **Propuesto** (solo en plan), **Implementado** (código sin eval
 
 1. **Auditoría independiente:** los resultados QGD previos no entrenaban (pesos inmóviles con `b=5`, `lr=0.1`), las pruebas de QGD eran vacuas y el ruido estaba mal simulado. Corregido y validado (sección 3).
 2. **Nueva línea variacional:** simulador rápido idéntico a Qibo y 4 optimizadores (GD, Adam, SPSA y secuencial). Fases A, B y C evaluadas en simulación; la fase C (10 particiones, 1280 entrenamientos, pre-registrada) es el resultado principal (secciones 4 y 7).
-3. **Preparación para el BSC sin acceso:** transpilador, ejecución por lotes, simulador que imita el chip, mitigación de lectura y borrador de la solicitud RES (sección 8).
-4. **Hallazgo del 24 de noviembre:** la salida del circuito actual ignora la cuarta característica y 3 de los 8 pesos, por dos CNOT que se anulan entre convolución y pooling (sección 9).
-5. **Documentación e informes:** log técnico (secciones 30–37), informe de resultados con figuras (`docs/reports/variational-results.pdf`) y suite completa de 138 pruebas OK.
+3. **Preparación para el BSC sin acceso:** transpilador (con opción física `compact=False`), ejecución por lotes, simulador que imita el chip, mitigación de lectura, adaptador público `src/qililab_adapter.py`, prueba mínima `experiments/run_qililab_smoke.py`, guía operativa `docs/bsc/pilot-execution.md` y borrador de la solicitud RES (sección 8).
+4. **Hallazgo del 24 de noviembre y arquitecturas alternativas (26-nov):** la salida del circuito `v1` ignora la cuarta característica y 3 de los 8 pesos, por dos CNOT que se anulan entre convolución y pooling. Ya se han implementado y validado unitariamente `v1-param-pool` (12 pesos) y `qibo` (42 pesos) en `src/qcnn_architectures.py`, sin alterar `v1` (sección 9).
+5. **Interfaz QML Workbench (25-nov):** aplicación de escritorio en PySide6 con patrón MVC y flujos de nodos editables (`src/workbench/`), con paridad verificada frente a la fase C y selección de las tres arquitecturas QCNN.
+6. **Documentación e informes:** log técnico (secciones 30–41), alineación de `requirements.txt` a CPython 3.10.13 (`python3.10-variation`), informe de resultados con figuras (`docs/reports/variational-results.pdf`) y suite completa de **180 pruebas OK** (Python 3.14.3, Qt `offscreen`; validación en CPython 3.10.13 pendiente).
 
 ## 1. Qué se necesita decidir
 
@@ -22,19 +23,21 @@ Estados usados: **Propuesto** (solo en plan), **Implementado** (código sin eval
    - si entra en el TFG y con qué alcance (solo inferencia o también entrenamiento corto);
    - quién figura como responsable de la solicitud a la RES;
    - si hay un proyecto financiado que permita pedir acceso por la vía rápida (*fast-track*).
-6. **Arquitectura del circuito** (sección 9): ¿se corrige la cancelación de CNOT y se repite la fase C (unas 7,5 h de CPU), o se mantiene el circuito actual y se documenta como un modelo de 3 características efectivas? Conviene decidirlo antes de enviar la solicitud RES y de escribir la memoria.
+6. **Arquitectura del circuito** (sección 9): ya existen `v1-param-pool` y `qibo` implementadas y validadas unitariamente junto a `v1`. ¿Se aprueba evaluar y comparar las tres arquitecturas con el protocolo pre-registrado de la fase C, o se mantiene solo `v1` documentado como modelo de 3 características efectivas? Conviene decidirlo antes de enviar la solicitud RES y de redactar la memoria.
 
 ## 2. Estado en una tabla
 
 | Componente | Estado | Evidencia |
 |---|---|---|
-| QCNN de 4 qubits (codificación angular/fase, convolución, pooling lógico) | Validado; **la salida solo usa 3 características y 5 pesos** (sección 9) | Pruebas unitarias: suite completa, 138/138 OK el 20 de noviembre; `results/diagnostics/light-cone/` |
+| QCNN de 4 qubits `v1` (codificación angular/fase, convolución, pooling lógico) | Validado; **la salida solo usa 3 características y 5 pesos** (sección 9) | Suite completa: **180/180 OK** el 27-nov (Qt `offscreen`, Python 3.14.3); `results/diagnostics/light-cone/` |
+| Arquitecturas QCNN alternativas (`v1-param-pool`, `qibo`) | Implementado y validado unitariamente; **no evaluado** | `src/qcnn_architectures.py`, `tests/test_qcnn_architectures.py`, `results/diagnostics/light-cone-*/` (log, §40) |
+| QML Workbench (interfaz PySide6 de flujos de nodos, MVC) | Implementado y validado | `src/workbench/`, `tests/test_workbench.py` (18 pruebas OK; log, §§38–40) |
 | Legado híbrido PyTorch + Adam | Evaluado (histórico, n = 3) | `results/initial-hybrid-adam/` |
 | QGD M1–M5 (actualización modular reversible) | Implementado y validado unitariamente; **no evaluado** | Log, secciones 28–30; auditoría |
 | Ruido local corregido (matriz de densidad, shots independientes) | Validado | Log, sección 30 |
 | Línea variacional (GD, Adam, SPSA, secuencial tipo Rotosolve/NFT) | **Evaluado en simulación** | `results/variational/` (log, secciones 31–34) |
-| Preparación para hardware (transpilación, ejecución por lotes, mitigación de lectura, simulador que imita el chip) | Implementado y validado en simulación | `docs/bsc/README.md`; log, secciones 35–36; incluida en la suite completa |
-| Ejecución en hardware real (BSC, MareNostrum5-Ona) | Propuesto | Sin acceso ni ejecuciones; el adaptador de Qililab es un esqueleto |
+| Preparación para hardware (transpilación, lotes, mitigación de lectura, mock, `src/qililab_adapter.py`, `run_qililab_smoke.py`) | Implementado y validado en simulación / mocks | `docs/bsc/README.md`, `docs/bsc/pilot-execution.md`, `tests/test_hardware_preparation.py` (21 pruebas; log, §§35–36, 41) |
+| Ejecución en hardware real (BSC, MareNostrum5-Ona) | Propuesto | Sin acceso ni ejecuciones en QPU; el adaptador Qililab implementa `qililab.execute` pero falta validación real en Ona |
 
 ## 3. Problemas encontrados y corregidos (auditoría independiente)
 
@@ -146,14 +149,14 @@ Qué se mantiene y qué no:
 
 **Qué se puede llevar al chip:** solo la línea variacional. QGD no es viable, porque sus puertas multicontroladas hacen el circuito demasiado profundo.
 
-**Hecho sin acceso (fase 1; implementado y validado en simulación; suite completa de 138 pruebas OK):**
-- Transpilador propio (Qibo 0.1.11 no trae uno). Reubica los qubits, añade SWAPs donde el chip no tiene conexión y descompone el circuito en puertas RX/RY/RZ/CZ. El resultado medido coincide exactamente con el circuito original.
+**Hecho sin acceso (fase 1 y preparación piloto; implementado y validado en simulación/mocks; suite completa de 180 pruebas OK):**
+- Transpilador propio (Qibo 0.1.11 no trae uno). Reubica los qubits, añade SWAPs donde el chip no tiene conexión, descompone el circuito en puertas RX/RY/RZ/CZ y soporta `compact=False` para emitir índices físicos reales hacia Qililab. El resultado medido coincide exactamente con el circuito original.
 - Ejecución de circuitos por lotes, porque en el BSC el coste está dominado por cada conexión.
 - Un simulador que se comporta como el chip: solo acepta puertas nativas sobre qubits conectados, añade ruido y error de lectura.
 - Calibración y corrección del error de lectura.
-- Inferencia de los checkpoints entrenados, ya probada en seco.
-- Scripts Slurm para MN5 y para Ona.
-- El adaptador de Qililab es todavía un **esqueleto**: falta la API concreta del BSC.
+- Inferencia de los checkpoints entrenados, ya probada en seco (`results/hardware/local-pilot/`).
+- Adaptador `src/qililab_adapter.py` (llamada pública `qililab.execute(circuit, runcard, nshots=...)`), prueba mínima `experiments/run_qililab_smoke.py` (1–2 qubits) y guía operativa `docs/bsc/pilot-execution.md` (con los 8 datos técnicos que debe confirmar el tutor). **No validado todavía contra la instalación real de Qililab ni en hardware Ona.**
+- Scripts Slurm para MN5 y para Ona (con parámetros de cuenta/QoS/módulos pendientes de confirmar).
 
 **Datos técnicos para la solicitud** (`docs/bsc/cost-estimates.md`; topologías de chip **hipotéticas**):
 
@@ -190,7 +193,7 @@ Los tiempos máximos usan la referencia de la guía (unos 20 s por trabajo, cont
 **Preguntas para la tutoría:**
 1. ¿Entra el BSC en el TFG? ¿Con H1 solo, o también H2?
 2. ¿Quién figura como responsable de la solicitud? ¿Hay un proyecto financiado para pedir la vía rápida?
-3. ¿Hay contacto en el BSC o en Qilimanjaro para conocer la topología del chip, sus puertas nativas y la API de Qililab antes de enviar la solicitud?
+3. ¿Hay contacto en el BSC o en Qilimanjaro para confirmar los 8 datos operativos de `docs/bsc/pilot-execution.md` (runcard `quantum_blue`/`quantum_red`, versiones de Qililab/Qibo, topología, puertas nativas, cuenta/QoS/partición Slurm, límite de shots, formato de `counts()` y política de lotes)?
 4. ¿Qué fecha de entrega tiene la memoria?
 
 ## 9. Hallazgo: el circuito actual solo usa 3 características y 5 pesos (24 de noviembre)
@@ -216,19 +219,26 @@ Los tiempos máximos usan la referencia de la guía (unos 20 s por trabajo, cont
 - **Hipótesis, no contrastada:** puede explicar en parte por qué la QCNN queda por debajo de la regresión logística.
 - **Coste** (no implementado): bastarían 15 circuitos por muestra en lugar de 33 (parameter-shift) y 19 en lugar de 40 (secuencial). En hardware, el circuito efectivo es de 3 qubits.
 
+**Arquitecturas alternativas ya implementadas (26 de noviembre, log §40; validadas unitariamente, no evaluadas):** `src/qcnn_architectures.py` añade, manteniendo intacta `v1`:
+- `v1-param-pool`: pooling parametrizado con una sola CNOT (`RY(a) RY(b) CNOT RY(-a)`), 12 pesos; usa las 4 características y los 12 pesos.
+- `qibo`: ansatz de `qibo.models.QuantumCNN` (42 pesos, sin sesgo y con nuestra codificación; 40 de 42 pesos influyen, 3 CNOT; ~15× más lento por paso).
+
+Evidencia: `results/diagnostics/light-cone-v1-param-pool/` y `results/diagnostics/light-cone-qibo/`. Todavía no están integradas en el transpilador ni en el estimador de coste BSC.
+
 **Opciones para decidir:**
 
 | Opción | Qué implica |
 |---|---|
-| Corregir el circuito (por ejemplo, un pooling con rotación controlada parametrizada) | Modelo nuevo: hay que repetir la fase C (unas 7,5 h de CPU en exacto), regenerar los informes y revisar la solicitud RES |
-| Mantenerlo | Documentar la limitación en la memoria, describir el modelo como de 3 características efectivas y, opcionalmente, podar el qubit 3 para el hardware |
+| Evaluar y comparar `v1`, `v1-param-pool` y `qibo` con el protocolo de la fase C | Ejecución multi-partición (pre-registrada, test una vez, Holm), ampliación del transpilador si se adopta otra arquitectura, regeneración de informes y revisión de la solicitud RES |
+| Mantener solo `v1` como modelo oficial | Documentar la limitación en la memoria, describir el modelo como de 3 características efectivas y, opcionalmente, podar el qubit 3 para el hardware |
 
 ## 10. Fuentes en el repositorio
 
-- `docs/TFG-technical-log.md`: secciones 28–37.
-- `results/diagnostics/light-cone/README.md`: hallazgo del cono de luz.
+- `docs/TFG-technical-log.md`: secciones 28–41.
+- `results/diagnostics/light-cone/`, `light-cone-v1-param-pool/` y `light-cone-qibo/`: diagnóstico del cono de luz.
+- `docs/workbench/README.md`: interfaz QML Workbench (PySide6, MVC).
 - `docs/bsc/res-application-draft.md`: borrador de la solicitud RES.
-- `docs/bsc/README.md` y `docs/bsc/cost-estimates.md`: plan BSC y datos técnicos.
+- `docs/bsc/README.md`, `docs/bsc/pilot-execution.md` y `docs/bsc/cost-estimates.md`: plan BSC, guía del piloto y datos técnicos.
 - `docs/experimental-protocol.md`: protocolo variacional.
 - `results/variational/A-tuning-bc-exact/README.md`, `results/variational/B-confirm-bc/README.md`, `results/variational/B-confirm-iris/README.md` y `results/variational/C-partitions/README.md`.
 - `results/quantum-training/`: perfiles M5, con pesos que no se mueven.

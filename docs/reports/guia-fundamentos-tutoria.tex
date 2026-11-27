@@ -3,12 +3,12 @@
 \usepackage{amssymb}
 \usepackage{quantikz}
 \fancyhead[L]{\small\color{inkmuted}Guía de fundamentos para la tutoría}
-\fancyhead[R]{\small\color{inkmuted}24 de noviembre de 2026}
+\fancyhead[R]{\small\color{inkmuted}24 de noviembre de 2026 · actualizado el 27 de noviembre}
 
 \title{\textbf{Guía de fundamentos y preparación de la tutoría}\\[2pt]
 \large Qué contar, qué decidir y la teoría detrás de cada cambio}
 \author{TFG «Plataforma para la experimentación con Quantum Machine Learning»}
-\date{24 de noviembre de 2026 · documento de estudio personal (no es parte de la memoria)\\
+\date{24 de noviembre de 2026 · actualizado el 27 de noviembre · documento de estudio personal (no es parte de la memoria)\\
 \small Los ejemplos numéricos se han calculado con el código y los JSON del repositorio}
 
 \begin{document}
@@ -45,10 +45,11 @@ pesos}, porque dos CNOT se anulan. Necesito que decidamos varias cosas, entre el
 3 & Fase A: ajuste de hiperparámetros solo con validation & Evaluado \\
 4 & Fase B: partición 42 de Breast Cancer e Iris; exacto, shots, ruido y mismo coste & Evaluado \\
 5 & Fase C: 10 particiones, pre-registrada, con Holm. \textbf{Resultado principal} & Evaluado \\
-6 & Preparación BSC: transpilador, lotes, simulador que imita el chip, mitigación de lectura & Validado en simulación \\
+6 & Preparación BSC: transpilador (incl. \texttt{compact=False}), lotes, simulador mock, mitigación de lectura, adaptador \ruta{qililab\_adapter.py}, smoke test y guía de piloto & Validado en simulación / mocks \\
 7 & Borrador de la solicitud RES (40\,h en Ona, 2000 horas-núcleo en MN5-GPP) & Borrador, no enviado \\
-8 & Diagnóstico del cono de luz: la salida ignora $x_3$ y 3 pesos & Validado numéricamente \\
-9 & Informes PDF, log técnico (secciones 30--37), 138 pruebas OK & Hecho \\
+8 & Diagnóstico del cono de luz (\texttt{v1}: ignora $x_3$ y 3 pesos) y arquitecturas alternativas (\texttt{v1-param-pool}, \texttt{qibo}) & Validado unitariamente; no evaluado \\
+9 & QML Workbench: interfaz de escritorio PySide6 de flujos de nodos (MVC) con paridad de fase C & Validado (18 pruebas) \\
+10 & Informes PDF, log técnico (secciones 30--41), alineación CPython 3.10.13, 180 pruebas OK & Hecho (Py 3.14.3; 3.10 pendiente) \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -62,8 +63,9 @@ pesos}, porque dos CNOT se anulan. Necesito que decidamos varias cosas, entre el
   \item ¿Qué resultados son \textbf{oficiales}? Propuesta: los de la fase C.
   \item \textbf{BSC}: ¿entra en el TFG?, ¿con qué alcance?, ¿quién firma la solicitud?, ¿hay un proyecto financiado?,
         ¿hay algún contacto para conocer la topología del chip?
-  \item \textbf{Arquitectura}: ¿se corrige la cancelación de CNOT y se repite la fase C (unas 7,5\,h de CPU), o se
-        mantiene el circuito y se documenta la limitación? (sección~\ref{sec:cono}).
+  \item \textbf{Arquitectura}: ya existen \texttt{v1-param-pool} y \texttt{qibo} implementadas y validadas unitariamente
+        junto a \texttt{v1}. ¿Se aprueba compararlas con el protocolo de la fase C, o se mantiene solo \texttt{v1} y se
+        documenta la limitación? (sección~\ref{sec:cono}).
 \end{enumerate}
 
 \section{Preguntas probables y cómo responderlas}
@@ -110,9 +112,12 @@ pesos}, porque dos CNOT se anulan. Necesito que decidamos varias cosas, entre el
   pero no a qué entradas es sensible.
 
 \item[¿Qué harías si lo corregimos?]
-  Cambiaría el pooling (por ejemplo, por una rotación controlada parametrizada), añadiría una prueba que exija que las
-  4 características y todos los pesos influyan, repetiría la fase C (unas 7,5\,h de CPU), regeneraría los informes y
-  revisaría la solicitud RES.
+  Ya están implementadas y validadas unitariamente dos alternativas en \ruta{src/qcnn\_architectures.py} (con pruebas
+  de cono de luz en \ruta{tests/test\_qcnn\_architectures.py} y sin tocar \texttt{v1}): \texttt{v1-param-pool} (pooling
+  parametrizado con una CNOT, 12 pesos, las 4 características y los 12 pesos influyen) y \texttt{qibo} (ansatz
+  \texttt{QuantumCNN}, 42 pesos). Con tu visto bueno, se evaluaría la comparativa con el protocolo pre-registrado de la
+  fase C, se ampliaría el transpilador si se adopta otra arquitectura, se regenerarían los informes y se revisaría la
+  solicitud RES.
 \end{description}
 
 \part{Fundamentos}

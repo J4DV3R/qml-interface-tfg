@@ -37,18 +37,22 @@ def load_csv(path: str, label_column: str, delimiter: str) -> Dataset:
     if not file.is_file():
         raise ValueError(f"no existe el archivo {path!r}")
     with file.open(newline="", encoding="utf-8-sig") as handle:
-        rows = list(csv.reader(handle, delimiter=delimiter or ","))
+        rows = [row for row in csv.reader(handle, delimiter=delimiter or ",") if row and any(c.strip() for c in row)]
     if len(rows) < 4:
         raise ValueError("el CSV necesita cabecera y al menos 3 filas")
     header, body = rows[0], rows[1:]
     if label_column not in header:
         raise ValueError(f"la columna de etiqueta {label_column!r} no está en la cabecera")
     index = header.index(label_column)
+    if any(len(row) != len(header) for row in body):
+        raise ValueError("todas las filas del CSV deben tener el mismo número de columnas que la cabecera")
     labels = [row[index] for row in body]
     try:
         features = np.array([[float(v) for j, v in enumerate(row) if j != index] for row in body])
     except ValueError as exc:
         raise ValueError("todas las columnas salvo la etiqueta deben ser numéricas") from exc
+    if not np.all(np.isfinite(features)):
+        raise ValueError("las características numéricas del CSV deben ser finitas")
     classes = sorted(set(labels))
     if len(classes) != 2:
         raise ValueError(f"se esperaban 2 clases y hay {len(classes)}")

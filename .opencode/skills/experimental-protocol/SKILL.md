@@ -24,7 +24,14 @@ description: "Preparación, ejecución y registro reproducible de experimentos; 
 - `results/initial-hybrid-adam/`: resultados históricos congelados. No
   sobrescribir.
 - `results/reproductions/legacy/`: repeticiones de experimentos antiguos.
-- `results/quantum-training/`: resultados del nuevo entrenamiento cuántico.
+- `results/quantum-training/`: perfiles exploratorios M5 y screens S0/G0/U0
+  de la ruta QGD.
+- `results/variational/`: línea variacional (fases A, B-BC, B-Iris y C con 10
+  particiones).
+- `results/diagnostics/`: diagnósticos de cono de luz (`light-cone/`,
+  `light-cone-v1-param-pool/`, `light-cone-qibo/`).
+- `results/hardware/`: pruebas en seco con `HardwareMockExecutor` (p. ej.
+  `local-pilot/`) y futuras ejecuciones BSC/Ona.
 
 Conserva siempre los JSON de origen y los logs. No los edites a mano para
 «corregir» cifras. Si hace falta un reanálisis, crea un informe aparte.
@@ -68,42 +75,56 @@ qml_env\Scripts\python.exe -m experiments.run_quantum_training `
   --learning-rate 0.1 --qgd-bits 5 --encoding angle `
   --dataset-seed 42 --initialization-seed 19 --execution-seed 101 `
   --output results/quantum-training/iris-angle-1step-shots100.json
+# Benchmark variacional multi-semilla (ejemplo screening sin test)
+qml_env\Scripts\python.exe -m experiments.run_variational_benchmark `
+  --dataset iris --dataset-seed 42 --encodings angle --optimizers sequential `
+  --seeds 19 --max-steps 50 --screening --output-dir results/variational/tmp-check
+
+# Análisis por partición (fase C) y diagnóstico de cono de luz
+qml_env\Scripts\python.exe -m experiments.analyze_partitions results/variational/C-partitions
+qml_env\Scripts\python.exe -m experiments.diagnose_light_cone --architecture v1-param-pool
+
+# Inferencia hardware (en seco con mock o piloto Qililab)
+qml_env\Scripts\python.exe -m experiments.run_hardware_inference `
+  <run.json> --executor mock --topology line --device-qubits 5 --shots 1000 `
+  --output results/hardware/dry-run/example.json
 ```
 
-La configuración `b=5/lr=0.1` es un no-op; los screens S0/G0/U0 y los perfiles
-M5 la usan. La suite completa actual es de 92 pruebas (10 de noviembre de 2026;
-sección 29 del log). En Qibo 0.1.11 el canal depolarizante se muestrea una vez
-por ejecución del circuito, no por shot; los shots no promedian ruido.
-`requirements.txt` está aprobado para el commit de cierre del 10 de noviembre de
-2026; no lo modifiques de nuevo sin nueva aprobación.
+La configuración QGD `b=5/lr=0.1` es un no-op; los screens S0/G0/U0 y los
+perfiles M5 la usan. La suite completa vigente es de **180 pruebas OK** (27 de
+noviembre de 2026, Qt `offscreen`, Python 3.14.3; sección 41 del log; validación
+en CPython 3.10.13 pendiente). Desde el 12-nov (§30) el modo de ruido por
+defecto es `density_matrix` exacto con shots independientes; la trayectoria
+compartida por ejecución corresponde solo al modo `legacy_shared_trajectory`.
+`requirements.txt` sigue los pins de `origin/python3.10-variation` +
+`PySide6==6.12.0` (aprobado el 25-nov); no lo modifiques sin aprobación.
 
-El objetivo acordado con el tutor es preparar ejecución en hardware cuántico
-real y llevar el ajuste aritmético de pesos a circuitos cuanto sea posible. No
-está pendiente la dirección general; sí deben definirse el backend y la
-implementación concreta de actualización. M5 implementa actualización aritmética
-reversible medida mediante counts, pero el adaptador disponible es solo el
-simulador Qibo. No hay backend de proveedor, transpilación ni validación de
-recursos del dispositivo. La regla modular difiere del clipping propuesto, por
-lo que no se debe asumir que esa regla concreta está aprobada.
-
-Para la nueva arquitectura, sigue las etapas y condiciones propuestas en la
-sección «Protocolo propuesto para orientar la ruta QGD a QPU» de
-`docs/experimental-protocol.md`. No ejecutes una matriz extensa: primero prueba
-un peso, escala a todos, valida circuitos y mide coste. Antes de cualquier
+Para la ruta hardware BSC, consulta `docs/bsc/README.md` y
+`docs/bsc/pilot-execution.md`: `src/qililab_adapter.py` y
+`experiments/run_qililab_smoke.py` implementan la llamada pública
+`qililab.execute`, pero no están validados aún en QPU real. Antes de cualquier
 ejecución larga o costosa, congela configuración y solicita aprobación
 específica. Distingue claramente estimaciones de circuitos, trabajos enviados y
 shots.
 
 ## Esquemas JSON observados
 
-Los resultados históricos usan dos familias:
+Los resultados del repositorio usan cinco familias principales:
 
-1. Barridos: claves `sweep`, `runs`, `summaries`, `baseline`.
-2. Batería focalizada: claves `dataset`, `model`, `training`, `results`,
+1. Barridos legados: claves `sweep`, `runs`, `summaries`, `baseline`.
+2. Batería focalizada legada: claves `dataset`, `model`, `training`, `results`,
    `baseline`.
 3. Runner QGD M1-M5: `dataset`, `provenance`, `seeds`, `model`,
    `initial_weights`, `qgd`, `training`, `best_weights`, `final_weights`, `test`,
    `circuit_executions_estimate` y `classical_quantum_boundary`.
+4. Línea variacional (`run_variational_benchmark.py`): `schema_version`,
+   `condition`, `seeds`, `provenance`, `partition_summary`, `baselines`,
+   `training` (`best_step`, `best_weights`, `history`), `validation`, `test` (si
+   no es `--screening`).
+5. Inferencia/piloto hardware y diagnósticos (`run_hardware_inference.py`,
+   `run_qililab_smoke.py`, `diagnose_light_cone.py`): `kind`, `status`,
+   `provenance`, `layout`/`physical_qubits`, `readout_calibration`, `cost`,
+   `runs` o `counts`.
 
 Antes de leer un JSON, comprueba sus claves reales. No supongas que todos los
 archivos tienen el mismo esquema.

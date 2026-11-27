@@ -64,13 +64,13 @@ class QCNNConfig:
     executor: CircuitExecutor | None = field(default=None, compare=False, repr=False)
 
     def __post_init__(self):
-        if not isinstance(self.n_qubits, int) or self.n_qubits < 2:
+        if isinstance(self.n_qubits, bool) or not isinstance(self.n_qubits, int) or self.n_qubits < 2:
             raise ValueError("n_qubits must be an integer of at least 2.")
         if self.n_qubits & (self.n_qubits - 1):
             raise ValueError(
                 "n_qubits must be a power of two for this pooling layout."
             )
-        if not isinstance(self.n_outputs, int) or self.n_outputs < 1:
+        if isinstance(self.n_outputs, bool) or not isinstance(self.n_outputs, int) or self.n_outputs < 1:
             raise ValueError("n_outputs must be a positive integer.")
         if self.n_outputs >= self.n_qubits or self.n_outputs & (self.n_outputs - 1):
             raise ValueError(
@@ -417,7 +417,9 @@ def predict(weights, features, config: QCNNConfig) -> np.ndarray:
 
     Exact, sampled and depolarizing executions are supported. Sampling uses the
     global NumPy generator, so a non-``None`` ``execution.seed`` makes every
-    call reproducible. In exact mode a noisy configuration raises ``ValueError``.
+    call reproducible. Exact noisy execution is supported with
+    ``noise_simulation='density_matrix'`` (default); ``legacy_shared_trajectory``
+    and ``per_shot_trajectories`` require finite ``shots``.
     """
     if not isinstance(config, QCNNConfig):
         raise TypeError("config must be a QCNNConfig instance.")
